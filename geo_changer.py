@@ -1,15 +1,16 @@
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from undetected_chromedriver import Chrome
 
 from random_wait import random_wait
 
 
-def change_geo(driver, region):
+def change_geo(driver: Chrome, region: str) -> None:
     """
     Меняет регион авто.ру
-    :param driver: driver браузера
-    :param region: регион на который нужно сменить
+    @param driver: driver браузера
+    @param region: регион на который нужно сменить
     """
     current_geo = driver.find_element(By.CSS_SELECTOR, "span[class*='GeoSelect__titleShrinker']")
     current_geo = current_geo.get_attribute('title')

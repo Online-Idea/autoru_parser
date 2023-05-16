@@ -2,34 +2,37 @@ import logging
 import re
 import time
 
+
 from geo_changer import change_geo
 from random_wait import random_wait
 
+from undetected_chromedriver import Chrome
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
+from bs4.element import PageElement, ResultSet
 
 
-def page_html(driver):
+def page_html(driver: Chrome) -> ResultSet:
     """
     Находит все элементы автомобилей
-    :param driver: driver браузера
-    :return: элементы bs4 с автомобилями
+    @param driver: driver браузера
+    @return: элементы bs4 с автомобилями
     """
     html = driver.page_source
     soup = BeautifulSoup(html, "html.parser")
     return soup.find_all("div", class_="ListingItem")
 
 
-def car_data(car, dealer_name=None):
+def car_data(car: PageElement, dealer_name: str = None) -> dict:
     """
     Собирает данные одного автомобиля
-    :param car: элемент от BeautifulSoup
-    :param dealer_name: имя дилера
-    :return: словарь с данными автомобиля
+    @param car: элемент от BeautifulSoup
+    @param dealer_name: имя дилера
+    @return: словарь с данными автомобиля
     """
     # Инфо об автомобиле
     mark_model = car.find('a', class_='ListingItemTitle__link').text
@@ -53,7 +56,6 @@ def car_data(car, dealer_name=None):
         with_nds = False
     except AttributeError:
         with_nds = False
-
 
     link = car.find('a', class_='ListingItemTitle__link')['href']
     condition = car.find('div', class_='ListingItem__kmAge').text
@@ -112,14 +114,14 @@ def car_data(car, dealer_name=None):
     }
 
 
-def parse_page(cars_url, driver, region=None, dealer_name=None):
+def parse_page(cars_url: str, driver: Chrome, region: str = None, dealer_name: str = None) -> list[dict]:
     """
     Парсит страницу дилера
-    :param cars_url: ссылка на страницу дилера
-    :param driver: driver браузера
-    :param region: регион
-    :param dealer_name: имя дилера
-    :return: лист словарей с данными автомобилей
+    @param cars_url: ссылка на страницу дилера
+    @param driver: driver браузера
+    @param region: регион
+    @param dealer_name: имя дилера
+    @return: лист словарей с данными автомобилей
     """
     driver.get(cars_url)
 

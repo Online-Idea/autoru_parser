@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 import logging
 import time
@@ -7,6 +8,7 @@ import pandas as pd
 from result_processing import data_work, format_work, dealer_data, dealers_pandas
 from parse_page import parse_page
 from random_wait import random_wait
+from email_sender import send_email_to_client
 
 import undetected_chromedriver as uc
 from selenium.webdriver.common.action_chains import ActionChains
@@ -38,11 +40,17 @@ wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 marks = pd.read_excel('start.xlsx', sheet_name='По марке')
 
 for _, mark in marks.iterrows():
-    logging.info(mark)
+    # Только активные
+    if str(mark['Активно']).lower() != 'да':
+        continue
+
+    logging.info(f'\n{mark}')
     client = mark['Наш клиент']
+    autoru_name = mark['Имя клиента на авто.ру']
     mark_name = mark['Марка']
     mark_url = mark['Ссылка']
     region = mark['Регион']
+    client_email = mark['Почты клиентов']
 
     df = pd.DataFrame({'mark_model': [], 'complectation': [], 'modification': [], 'year': [], 'dealer': [],
                        'price_with_discount': [], 'price_no_discount': [], 'with_nds': [], 'link': [], 'condition': [],
@@ -53,14 +61,17 @@ for _, mark in marks.iterrows():
     if cars:
         df = df._append(dealer_data(cars))
 
-    # TODO убрать
+    # Сохраняю выдачу в отдельный файл
     df_all = pd.DataFrame.from_records(cars)
     today = datetime.now().strftime('%d.%m.%Y')
-    file_name = f'results/Выдача {client} {today}.xlsx'
-    df_all.T.reset_index().T.to_excel(file_name, sheet_name='Все', header=False, index=False)
+    file_name = f'Выдача {client} {today}.xlsx'
+    file_path = os.path.join('results', file_name)
+    df_all.T.reset_index().T.to_excel(file_path, sheet_name='Все', header=False, index=False)
 
-    file_after_pandas = dealers_pandas(df, client)
-    format_work(file_after_pandas, client)
+    file_after_pandas = dealers_pandas(df, autoru_name)
+    file_path_result = format_work(file_after_pandas, autoru_name, client)
+
+    send_email_to_client(client_email, file_path_result)
 
 driver.quit()
 

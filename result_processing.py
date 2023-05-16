@@ -1,16 +1,18 @@
+import os
 from datetime import datetime
 
 import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, PatternFill, Border, Side, Protection, Font
 from openpyxl.utils import get_column_letter
+from pandas import DataFrame
 
 
-def dealer_data(cars):
+def dealer_data(cars: list[dict]) -> DataFrame:
     """
     Обработка данных одного дилера
-    :param cars: лист словарей с данными автомобилей
-    :return: Pandas DataFrame с автомобилями дилера
+    @param cars: лист словарей с данными автомобилей
+    @return: Pandas DataFrame с автомобилями дилера
     """
     df = pd.DataFrame.from_records(cars)
 
@@ -47,18 +49,18 @@ def dealer_data(cars):
     return df
 
 
-def dealers_pandas(df, client):
+def dealers_pandas(df: DataFrame, autoru_name: str) -> str:
     """
     Здесь обработка данных, собранных со страниц дилеров
-    :param df: Pandas DataFrame с данными дилеров
-    :param client: имя нашего клиента
-    :return: имя готового файла
+    @param df: Pandas DataFrame с данными дилеров
+    @param autoru_name: имя клиента на авто.ру
+    @return: имя готового файла
     """
     # Удаляю ненужные столбцы
     df = df.drop(columns=['condition', 'in_stock'])
 
     # Считаю разницу
-    lookup_df = df[df['dealer'] == client]
+    lookup_df = df[df['dealer'] == autoru_name]
     merged_df = pd.merge(df, lookup_df, on=['mark_model', 'complectation', 'modification', 'year'],
                          suffixes=('_data', '_lookup'), how='left')
     merged_df['price_with_discount_difference'] = merged_df['price_with_discount_data'] - merged_df[
@@ -188,11 +190,13 @@ def data_work(cars, dealer):
     return file_name
 
 
-def format_work(xlsx_file, dealer):
+def format_work(xlsx_file: str, autoru_name: str, client: str) -> str:
     """
     Форматирование готового файла в читабельный вид
-    :param xlsx_file: xlsx файл после dealers_pandas
-    :param dealer: имя нашего клиента
+    @param xlsx_file: xlsx файл после dealers_pandas
+    @param autoru_name: имя клиента на авто.ру
+    @param client: имя нашего клиента
+    @return: путь к файлу
     """
     # Форматирование результата
     book = load_workbook(xlsx_file)
@@ -207,7 +211,7 @@ def format_work(xlsx_file, dealer):
         col_letter = get_column_letter(col)
         if cell == 'Имя дилера':
             dealer_col = col_letter
-        elif 'цен' in cell:
+        elif 'цен' in cell.lower():
             price_cols.append(col_letter)
         elif cell == 'Ссылка':
             link_col = col_letter
@@ -245,11 +249,11 @@ def format_work(xlsx_file, dealer):
     blue_fill = PatternFill(start_color='DEE6EF', end_color='DEE6EF', fill_type='solid')
     red_fill = PatternFill(start_color='E0C2CD', end_color='E0C2CD', fill_type='solid')
     green_fill = PatternFill(start_color='DDE8CB', end_color='DDE8CB', fill_type='solid')
-    # font = Font(name="Calibri", bold=True)
+    font = Font(name="Calibri", bold=True)
 
     # Выделяю голубым нашего дилера
     for row in range(2, worksheet.max_row + 1):
-        if worksheet[dealer_col + str(row)].value == dealer:
+        if worksheet[dealer_col + str(row)].value == autoru_name:
             prices_range = worksheet[f'{dealer_col}{str(row)}:{price_cols[-1]}{str(row)}']
             for cell in prices_range[0]:
                 cell.fill = blue_fill
@@ -267,10 +271,16 @@ def format_work(xlsx_file, dealer):
     # Высота первой строки в 3 строки
     worksheet.row_dimensions[1].height = 45
 
-    # Выравнивание по центру первой строки
+    # Выравнивание по центру первой строки и жирный шрифт
     for cell in worksheet[1]:
         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.font = font
+
+    # Закрепляю строки и столбцы
+    worksheet.freeze_panes = 'C2'
 
     today = datetime.now().strftime('%d.%m.%Y')
-    file_name = f'Сравнение {dealer} {today}.xlsx'
-    book.save(f'results/{file_name}')
+    file_name = f'Сравнение {client} {today}.xlsx'
+    file_path = os.path.join('results', file_name)
+    book.save(file_path)
+    return file_path

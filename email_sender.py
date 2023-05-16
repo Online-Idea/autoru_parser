@@ -18,7 +18,7 @@ def send_email_to_client(client_email: str, file_path: str) -> None:
     sender = os.environ['email_login']
     password = os.environ['email_password']
     recipients = [client.strip() for client in client_email.split(',')]
-    # recipients.append('ruslansponline@gmail.com')  # Почта Руслана
+    recipients.append('ruslansponline@gmail.com')  # Почта Руслана
     subject = file_name
     body = 'Добрый день,\n\n' \
            'В приложении сравнительный анализ конкурентов\n\n' \

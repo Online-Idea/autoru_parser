@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import datetime
 import logging
 import time
@@ -37,7 +38,10 @@ driver = uc.Chrome(driver_executable_path=ChromeDriverManager().install(), optio
 wait = WebDriverWait(driver, 10)
 wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
-marks = pd.read_excel('start.xlsx', sheet_name='По марке')
+if sys.argv[1] == '--by_request':  # Одинарный запуск
+    marks = pd.read_excel('start.xlsx', sheet_name='По марке (по запросу)')
+else:  # Для автоматического запуска
+    marks = pd.read_excel('start.xlsx', sheet_name='По марке (автоматом)')
 
 for _, mark in marks.iterrows():
     # Только активные

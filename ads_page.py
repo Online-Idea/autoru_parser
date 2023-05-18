@@ -5,6 +5,7 @@ import logging
 import time
 
 import pandas as pd
+from pandas import DataFrame
 
 from result_processing import data_work, format_work, dealer_data, dealers_pandas
 from parse_page import parse_page
@@ -38,10 +39,16 @@ driver = uc.Chrome(driver_executable_path=ChromeDriverManager().install(), optio
 wait = WebDriverWait(driver, 10)
 wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
-if sys.argv[1] == '--by_request':  # Одинарный запуск
+if len(sys.argv) > 1 and sys.argv[1] == '--by_request':  # Одинарный запуск
     marks = pd.read_excel('start.xlsx', sheet_name='По марке (по запросу)')
 else:  # Для автоматического запуска
     marks = pd.read_excel('start.xlsx', sheet_name='По марке (автоматом)')
+
+# Сортирую по марке чтобы не парсить одну и ту же марку для разных клиентов
+marks = marks.sort_values(by='Марка')
+
+previous_mark = ''
+previous_df: DataFrame
 
 for _, mark in marks.iterrows():
     # Только активные
@@ -56,26 +63,30 @@ for _, mark in marks.iterrows():
     region = mark['Регион']
     client_email = mark['Почты клиентов']
 
-    df = pd.DataFrame({'mark_model': [], 'complectation': [], 'modification': [], 'year': [], 'dealer': [],
-                       'price_with_discount': [], 'price_no_discount': [], 'with_nds': [], 'link': [], 'condition': [],
-                       'in_stock': [], 'services': [], 'tags': [], 'photos': []})
+    # Если текущая марка не равна прошлой марке значит парсим
+    if mark_name != previous_mark:
+        df = pd.DataFrame({'mark_model': [], 'complectation': [], 'modification': [], 'year': [], 'dealer': [],
+                           'price_with_discount': [], 'price_no_discount': [], 'with_nds': [], 'link': [], 'condition': [],
+                           'in_stock': [], 'services': [], 'tags': [], 'photos': []})
 
-    random_wait()
-    cars = parse_page(mark_url, driver, region)
-    if cars:
-        df = df._append(dealer_data(cars))
+        random_wait()
+        cars = parse_page(mark_url, driver, region)
+        if cars:
+            df = df._append(dealer_data(client, cars))
 
-    # Сохраняю выдачу в отдельный файл
-    df_all = pd.DataFrame.from_records(cars)
-    today = datetime.now().strftime('%d.%m.%Y')
-    file_name = f'Выдача {client} {today}.xlsx'
-    file_path = os.path.join('results', file_name)
-    df_all.T.reset_index().T.to_excel(file_path, sheet_name='Все', header=False, index=False)
+        file_after_pandas = dealers_pandas(df, autoru_name)
 
-    file_after_pandas = dealers_pandas(df, autoru_name)
+    # Иначе берём уже спарсенные объявления
+    else:
+        file_after_pandas = dealers_pandas(previous_df, autoru_name)
+
     file_path_result = format_work(file_after_pandas, autoru_name, client)
 
     send_email_to_client(client_email, file_path_result)
+
+    previous_mark = mark_name
+    previous_df = df
+
 
 driver.quit()
 

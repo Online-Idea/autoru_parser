@@ -8,9 +8,10 @@ from openpyxl.utils import get_column_letter
 from pandas import DataFrame
 
 
-def dealer_data(cars: list[dict]) -> DataFrame:
+def dealer_data(client: str, cars: list[dict]) -> DataFrame:
     """
-    Обработка данных одного дилера
+    Обработка данных объявления
+    @param client: имя нашего клиента
     @param cars: лист словарей с данными автомобилей
     @return: Pandas DataFrame с автомобилями дилера
     """
@@ -27,6 +28,12 @@ def dealer_data(cars: list[dict]) -> DataFrame:
     df[['year', 'price_with_discount', 'price_no_discount']] = \
         df[['year', 'price_with_discount', 'price_no_discount']] \
             .apply(lambda x: pd.to_numeric(x, errors='coerce'))
+
+    # Сохраняю выдачу
+    today = datetime.now().strftime('%d.%m.%Y')
+    file_name = f'Выдача {client} {today}.xlsx'
+    file_path = os.path.join('results', file_name)
+    df.T.reset_index().T.to_excel(file_path, sheet_name='Все', header=False, index=False)
 
     # Сортирую
     df = df.sort_values(by=['mark_model', 'complectation', 'modification', 'year', 'price_with_discount'])

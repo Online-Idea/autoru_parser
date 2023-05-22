@@ -17,6 +17,9 @@ def dealer_data(client: str, cars: list[dict]) -> DataFrame:
     """
     df = pd.DataFrame.from_records(cars)
 
+    # Заполняю пустые комплектации для расчётов
+    df['complectation'] = df['complectation'].fillna('empty')
+
     # Позиция
     df['position'] = df.groupby(['mark_model', 'complectation', 'modification', 'year']).cumcount() + 1
 
@@ -52,6 +55,9 @@ def dealer_data(client: str, cars: list[dict]) -> DataFrame:
     # Удаляю дубликаты
     # df = df.drop_duplicates(subset=['mark_model', 'complectation', 'modification', 'year'])
     df = df.drop_duplicates(subset=['mark_model', 'complectation', 'modification', 'year', 'dealer'])
+
+    # Убираю больше ненужное 'empty' из комплектаций
+    df['complectation'] = df['complectation'].str.replace('empty', '')
 
     return df
 

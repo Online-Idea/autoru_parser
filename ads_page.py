@@ -44,8 +44,8 @@ if len(sys.argv) > 1 and sys.argv[1] == '--by_request':  # Одинарный з
 else:  # Для автоматического запуска
     marks = pd.read_excel('start.xlsx', sheet_name='По марке (автоматом)')
 
-# Сортирую по марке чтобы не парсить одну и ту же марку для разных клиентов
-marks = marks.sort_values(by='Марка')
+# Сортирую по региону и марке чтобы не парсить одну и ту же марку для разных клиентов
+marks = marks.sort_values(by=['Регион', 'Марка'])
 
 previous_mark = ''
 previous_df: DataFrame

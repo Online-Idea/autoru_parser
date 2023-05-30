@@ -1,19 +1,16 @@
-import logging
 import re
-import time
 
-
-from geo_changer import change_geo
-from random_wait import random_wait
-
-from undetected_chromedriver import Chrome
+from bs4 import BeautifulSoup
+from bs4.element import PageElement, ResultSet
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from bs4 import BeautifulSoup
-from bs4.element import PageElement, ResultSet
+from selenium.webdriver.support.wait import WebDriverWait
+from undetected_chromedriver import Chrome
+
+from geo_changer import change_geo
+from random_wait import random_wait
 
 
 def page_html(driver: Chrome) -> ResultSet:
@@ -24,10 +21,11 @@ def page_html(driver: Chrome) -> ResultSet:
     """
     html = driver.page_source
     soup = BeautifulSoup(html, "html.parser")
-    return soup.find_all("div", class_="ListingItem")
+    current_region = soup.find("div", class_="ListingCars_outputType_list")
+    return current_region.find_all("div", class_="ListingItem")
 
 
-def car_data(car: PageElement, dealer_name: str = None) -> dict:
+def car_data(car: PageElement, dealer_name: str) -> dict:
     """
     Собирает данные одного автомобиля
     @param car: элемент от BeautifulSoup
@@ -50,8 +48,7 @@ def car_data(car: PageElement, dealer_name: str = None) -> dict:
     price_no_discount = prices[1].text if len(prices) > 1 else prices[0].text
     # Цена с НДС
     try:
-        nds = car.find('div', class_='ListingItem__withNds').text
-        with_nds = True
+        with_nds = car.find('div', class_='ListingItem__withNds').text
     except NoSuchElementException:
         with_nds = False
     except AttributeError:
@@ -60,8 +57,13 @@ def car_data(car: PageElement, dealer_name: str = None) -> dict:
     link = car.find('a', class_='ListingItemTitle__link')['href']
     condition = car.find('div', class_='ListingItem__kmAge').text
     in_stock = car.find('div', class_='ListingItem__stock').text.replace('\xa0', ' ')
-    if not dealer_name:
+
+    # Имя дилера. Беру из объявления если оно там есть,
+    # иначе остаётся имя нашего дилера т.к. это означает что парсим страницу дилера
+    try:
         dealer_name = car.find('a', class_='ListingItem__salonName').text
+    except AttributeError:
+        pass
 
     # Услуги
     try:
@@ -114,7 +116,7 @@ def car_data(car: PageElement, dealer_name: str = None) -> dict:
     }
 
 
-def parse_page(cars_url: str, driver: Chrome, region: str = None, dealer_name: str = None) -> list[dict]:
+def parse_autoru(cars_url: str, driver: Chrome, region: str = None, dealer_name: str = None) -> list[dict]:
     """
     Парсит страницу дилера
     @param cars_url: ссылка на страницу дилера
@@ -162,4 +164,3 @@ def parse_page(cars_url: str, driver: Chrome, region: str = None, dealer_name: s
             next_page = False
 
     return cars
-

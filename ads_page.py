@@ -1,25 +1,21 @@
-import os
 import sys
-from datetime import datetime
 import logging
+import sys
 import time
 
 import pandas as pd
-from pandas import DataFrame
-
-from result_processing import data_work, format_work, dealer_data, dealers_pandas
-from parse_page import parse_page
-from random_wait import random_wait
-from email_sender import send_email_to_client
-
 import undetected_chromedriver as uc
-from selenium.webdriver.common.action_chains import ActionChains
+from pandas import DataFrame
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from bs4 import BeautifulSoup
+from selenium.webdriver.support.wait import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
+
+from email_sender import send_email_to_client
+from parse_autoru import parse_autoru
+from parse_avito import parse_avito
+from random_wait import random_wait
+from result_processing import format_work, dealer_data, dealers_pandas
 
 start = time.perf_counter()
 
@@ -44,8 +40,8 @@ if len(sys.argv) > 1 and sys.argv[1] == '--by_request':  # Одинарный з
 else:  # Для автоматического запуска
     marks = pd.read_excel('start.xlsx', sheet_name='По марке (автоматом)')
 
-# Сортирую по региону и марке чтобы не парсить одну и ту же марку для разных клиентов
-marks = marks.sort_values(by=['Регион', 'Марка'])
+# Сортирую по сайту, региону и марке чтобы не парсить одно и то же для разных клиентов
+marks = marks.sort_values(by=['Сайт', 'Регион', 'Марка'])
 
 previous_mark = ''
 previous_df: DataFrame
@@ -59,6 +55,7 @@ for _, mark in marks.iterrows():
     client = mark['Наш клиент']
     autoru_name = mark['Имя клиента на авто.ру']
     mark_name = mark['Марка']
+    site = mark['Сайт'].lower()
     mark_url = mark['Ссылка']
     region = mark['Регион']
     client_email = mark['Почты клиентов']
@@ -66,15 +63,19 @@ for _, mark in marks.iterrows():
     # Если текущая марка не равна прошлой марке значит парсим
     if mark_name != previous_mark:
         df = pd.DataFrame({'mark_model': [], 'complectation': [], 'modification': [], 'year': [], 'dealer': [],
-                           'price_with_discount': [], 'price_no_discount': [], 'with_nds': [], 'link': [], 'condition': [],
-                           'in_stock': [], 'services': [], 'tags': [], 'photos': []})
+                           'price_with_discount': [], 'price_no_discount': [], 'with_nds': [], 'link': [],
+                           'condition': [], 'in_stock': [], 'services': [], 'tags': [], 'photos': []})
 
-        random_wait()
-        cars = parse_page(mark_url, driver, region)
+        cars = None
+        if site in ['авто.ру', 'автору']:
+            cars = parse_autoru(mark_url, driver, region, autoru_name)
+        elif site == 'авито':
+            cars = parse_avito(mark_url, driver, mark_name)
         if cars:
             df = df._append(dealer_data(client, cars))
 
         file_after_pandas = dealers_pandas(df, autoru_name)
+        random_wait()
 
     # Иначе берём уже спарсенные объявления
     else:
@@ -82,7 +83,8 @@ for _, mark in marks.iterrows():
 
     file_path_result = format_work(file_after_pandas, autoru_name, client)
 
-    send_email_to_client(client_email, file_path_result)
+    if str(client_email) != 'nan':
+        send_email_to_client(client_email, file_path_result)
 
     previous_mark = mark_name
     previous_df = df

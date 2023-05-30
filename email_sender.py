@@ -1,9 +1,8 @@
 import os
 import smtplib
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
-from email import encoders
 
 
 def send_email_to_client(client_email: str, file_path: str) -> None:

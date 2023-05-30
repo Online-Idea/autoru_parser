@@ -40,11 +40,6 @@ if is_multi_page:
         rows = soup.find_all("div", class_="ListingItem")
 
 
-
-
-
-
-
 password_input = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
 sign_in_btn = driver.find_element(By.XPATH, "//span[text()='Войти']")
 sign_in_btn.click()
@@ -71,3 +66,16 @@ for row in rows:
 competition_filter = driver.find_element(By.CLASS_NAME, "PriceReportMarketFilter")
 competition_filter.click()
 competition_salons = driver.find_elements(By.CLASS_NAME, "PriceReportMarketFilter__title")
+
+
+# Avito, but manually going to needed mark
+mark = 'EXEED'
+avito_autos_url = 'https://www.avito.ru/moskva/transport'
+all_marks = driver.find_element(By.CSS_SELECTOR, 'button[data-marker="popular-rubricator/controls/all"]')
+all_marks.click()
+mark_on_site = driver.find_element(By.CSS_SELECTOR, f'a[title={mark}]')
+mark_on_site.click()
+new = driver.find_element(By.XPATH, "//span[contains(text(),'Новые')]")
+new.click()
+submit = driver.find_element(By.CSS_SELECTOR, 'button[data-marker="search-filters/submit-button"')
+submit.click()

@@ -2,19 +2,15 @@ import logging
 import time
 
 import pandas as pd
-
-from result_processing import data_work, format_work, dealer_data, dealers_pandas
-from parse_page import parse_page
-from random_wait import random_wait
-
 import undetected_chromedriver as uc
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from bs4 import BeautifulSoup
+from selenium.webdriver.support.wait import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
+
+from parse_autoru import parse_autoru
+from random_wait import random_wait
+from result_processing import format_work, dealer_data, dealers_pandas
 
 start = time.perf_counter()
 
@@ -51,7 +47,7 @@ for client in our_clients:
         region = competitor['Регион']
         logging.info(f'Конкурент {current_dealer}')
         random_wait()
-        cars = parse_page(dealer_url, driver, dealer_name=current_dealer)
+        cars = parse_autoru(dealer_url, driver, dealer_name=current_dealer)
         if cars:
             df = df._append(dealer_data(cars))
 

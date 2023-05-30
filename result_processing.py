@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pandas as pd
 from openpyxl import load_workbook
-from openpyxl.styles import Alignment, PatternFill, Border, Side, Protection, Font
+from openpyxl.styles import Alignment, PatternFill, Font
 from openpyxl.utils import get_column_letter
 from pandas import DataFrame
 
@@ -20,8 +20,8 @@ def dealer_data(client: str, cars: list[dict]) -> DataFrame:
     # Заполняю пустые комплектации для расчётов
     df['complectation'] = df['complectation'].fillna('empty')
 
-    # Позиция
-    df['position'] = df.groupby(['mark_model', 'complectation', 'modification', 'year']).cumcount() + 1
+    # Позиция по актуальности
+    df['position_actual'] = df.groupby(['mark_model', 'complectation', 'modification', 'year']).cumcount() + 1
 
     # Чищу цены
     df['price_with_discount'] = df['price_with_discount'].str.replace(r'\D+', '', regex=True)
@@ -55,6 +55,9 @@ def dealer_data(client: str, cars: list[dict]) -> DataFrame:
     # Удаляю дубликаты
     # df = df.drop_duplicates(subset=['mark_model', 'complectation', 'modification', 'year'])
     df = df.drop_duplicates(subset=['mark_model', 'complectation', 'modification', 'year', 'dealer'])
+
+    # Позиция по цене
+    df['position_price'] = df.groupby(['mark_model', 'complectation', 'modification', 'year']).cumcount() + 1
 
     # Убираю больше ненужное 'empty' из комплектаций
     df['complectation'] = df['complectation'].str.replace('empty', '')
@@ -95,7 +98,7 @@ def dealers_pandas(df: DataFrame, autoru_name: str) -> str:
     merged_df = merged_df[['mark_model', 'complectation', 'modification', 'year', 'dealer',
                            'price_with_discount', 'price_no_discount',
                            'price_with_discount_difference', 'price_no_discount_difference',
-                           'position', 'link', 'stock', 'for_order']]
+                           'position_price', 'position_actual', 'link', 'stock', 'for_order']]
 
     merged_df = merged_df.fillna('')
 
@@ -117,7 +120,8 @@ def dealers_pandas(df: DataFrame, autoru_name: str) -> str:
         'price_no_discount': 'Цена без скидок',
         'price_with_discount_difference': 'Разница цены со скидками',
         'price_no_discount_difference': 'Разница цены без скидок',
-        'position': 'Позиция',
+        'position_price': 'Позиция по цене',
+        'position_actual': 'Позиция по актуальности',
         'stock': 'В наличии',
         'for_order': 'Под заказ',
         'link': 'Ссылка',
@@ -231,7 +235,7 @@ def format_work(xlsx_file: str, autoru_name: str, client: str) -> str:
         elif cell == 'В наличии' or cell == 'Под заказ':
             stock_cols.append(col_letter)
         elif 'Позиция' in cell:
-            position_col = col_letter
+            position_actual_col = col_letter
 
         if 'Разница' in cell:
             difference_cols.append(col_letter)
@@ -244,7 +248,7 @@ def format_work(xlsx_file: str, autoru_name: str, client: str) -> str:
 
         if column_name == link_col:
             worksheet.column_dimensions[column_name].width = 20
-        elif column_name in price_cols or column_name in stock_cols or column_name == position_col:
+        elif column_name in price_cols or column_name in stock_cols or column_name == position_actual_col:
             worksheet.column_dimensions[column_name].width = 13
         else:
             for cell in column:

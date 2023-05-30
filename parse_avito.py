@@ -1,22 +1,24 @@
 import logging
 import re
-import time
-import pandas as pd
 
-from bs4 import BeautifulSoup
+import requests
+from bs4 import BeautifulSoup, PageElement
 from selenium.common import NoSuchElementException
+from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import undetected_chromedriver as uc
 from undetected_chromedriver import Chrome
-from webdriver_manager.chrome import ChromeDriverManager
 
 from random_wait import random_wait
-from result_processing import dealer_data, dealers_pandas, format_work
 
 
-def page_html(driver: Chrome):
+def page_html(driver: Chrome) -> list[str]:
+    """
+    Собирает ссылки на объявления с текущей страницы
+    @param driver: driver браузера
+    @return: лист со ссылками
+    """
     html = driver.page_source
     soup = BeautifulSoup(html, "html.parser")
     block = soup.select_one('[class*="items-items"]')  # Объявления текущего города
@@ -24,38 +26,20 @@ def page_html(driver: Chrome):
     return [f"https://www.avito.ru{link.get('href')}" for link in links]
 
 
-def ads_links(driver: Chrome):
-    links = page_html(driver)
-
-    try:
-        next_page = driver.find_element(By.CSS_SELECTOR, "li[class*='styles-module-listItem_arrow_next']")
-    except NoSuchElementException:
-        next_page = False
-
-    while next_page:
-        next_page.click()
-        random_wait()
-        # WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='index-logo']")))
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-
-        links += page_html(driver)
-
-        try:
-            next_page = driver.find_element(By.CSS_SELECTOR, "li[class*='styles-module-listItem_arrow_next']")
-            next_page_class = next_page.find_element(By.TAG_NAME, 'span').get_attribute('class')
-        except NoSuchElementException:
-            next_page = False
-        else:
-            if 'styles-module-item_disabled' in next_page_class:
-                next_page = False
-
-    return links
-
-
-def car_data(car, link):
+def car_data(car: PageElement, link: str) -> dict:
+    """
+    Собирает данные одного автомобиля
+    @param car: элемент от BeautifulSoup
+    @param link: ссылка на объявление
+    @return: словарь с данными автомобиля
+    """
     # Инфо об автомобиле
-    mark_model = car.find('span', class_='title-info-title-text').text \
-        .split(',')[0]
+    try:
+        mark_model = car.find('span', class_='title-info-title-text').text \
+            .split(',')[0]
+    except AttributeError:
+        logging.info(car)
+        return {}
     generation = car.find(lambda tag: tag.name == 'span' and 'Поколение' in tag.text) \
         .parent.text.replace('Поколение: ', '')
     generation = generation[:generation.find('(')].strip()
@@ -87,7 +71,7 @@ def car_data(car, link):
     price = car.select_one('[class*="style-price-value-main"]')
     price_with_discount = price.text
     price_no_discount = price.findChild("span").get('content')
-    # Цена с НДС (пока по умолчанию False до тех пор пока авито не введёт это поле)
+    # Цена с НДС (пока по умолчанию False до тех пор, пока авито не введёт это поле)
     with_nds = False
 
     condition = car.select_one('[class*="style-newLabel"]').text
@@ -128,57 +112,119 @@ def car_data(car, link):
     }
 
 
-def parse_avito(driver: Chrome):
+def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
+    """
+    Парсит авито
+    @param cars_url: ссылка на страницу с объявлениями
+    @param driver: driver браузера
+    @return: лист словарей с данными автомобилей
+    """
+    driver.get(cars_url)
+
+    wait = WebDriverWait(driver, 10)
+    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+    # Если прямая ссылка на марку возвращает 403 или 404 то выбираю эту марку со страницы всех автомобилей
+    response = requests.get(driver.current_url)
+    if response.status_code in [403, 404]:
+        url_with_region = cars_url[:cars_url.find('avtomobili')]
+        avito_autos_url = f'{url_with_region}/transport'
+        driver.get(avito_autos_url)
+        all_marks = driver.find_element(By.CSS_SELECTOR, 'button[data-marker="popular-rubricator/controls/all"]')
+        all_marks.click()
+        mark_on_site = driver.find_element(By.CSS_SELECTOR, f'a[title={mark}]')
+        mark_on_site.click()
+        new = driver.find_element(By.XPATH, "//span[contains(text(),'Новые')]")
+        new.click()
+        submit = driver.find_element(By.CSS_SELECTOR, 'button[data-marker="search-filters/submit-button"')
+        submit.click()
+
+        try:
+            third_page = driver.find_element(By.CSS_SELECTOR, 'a[aria-label="Страница 3"]')
+        except NoSuchElementException:
+            pass
+        else:
+            third_page.click()
+            random_wait()
+            wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+            first_page = driver.find_element(By.CSS_SELECTOR, 'a[aria-label="Страница 1"]')
+            first_page.click()
+            wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+            final_url = driver.current_url.replace('cd=1&', '')
+            driver.get(final_url)
+
+    # Клик по 0, 0 на случай если авито показывает pop up
+    actions = ActionChains(driver)
+    actions.move_by_offset(0, 0).click().perform()
+
     cars = []
-    cars_links = ads_links(driver)
+    cars_links = page_html(driver)
+
+    # Пагинация
+    # Следующая страница
+    try:
+        next_page = driver.find_element(By.CSS_SELECTOR, "li[class*='styles-module-listItem_arrow_next']")
+    except NoSuchElementException:
+        next_page = False
+
+    # Другие города
+    try:
+        other_cities = driver.find_element(By.CSS_SELECTOR, 'div[class*="items-extraTitle"]')
+    except NoSuchElementException:
+        other_cities = False
+
+    while next_page and not other_cities:
+        next_page.click()
+        random_wait()
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+        cars_links += page_html(driver)
+
+        try:
+            next_page = driver.find_element(By.CSS_SELECTOR, "li[class*='styles-module-listItem_arrow_next']")
+        except NoSuchElementException:
+            next_page = False
+        else:
+            try:
+                next_page_class = next_page.find_element(By.TAG_NAME, 'span').get_attribute('class')
+            except NoSuchElementException:
+                pass
+            else:
+                if 'styles-module-item_disabled' in next_page_class:
+                    next_page = False
+        try:
+            other_cities = driver.find_element(By.CSS_SELECTOR, 'div[class*="items-extraTitle"]')
+        except NoSuchElementException:
+            other_cities = False
+
+    # Парсинг объявлений
     len_cars_links = len(cars_links)
     for i, car_link in enumerate(cars_links):
         logging.info(f'Объявление {i + 1:4} из {len_cars_links}, {car_link}')
-        random_wait(max_wait=4)
+
+        random_wait(min_wait=3, max_wait=4)
         driver.get(car_link)
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='index-logo']")))
+        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='index-logo']")))
+
         html = driver.page_source
-        soup = BeautifulSoup(html, "html.parser")
-        car_element = soup.find("body")
-        cars.append(car_data(car_element, car_link))
+        # response = requests.get(car_link)
+        # if response.status_code == 404:
+        #     continue
+        # else:
+        #     soup = BeautifulSoup(response.content, "html.parser")
+        #     car_element = soup.find("body")
+        #     cars.append(car_data(car_element, car_link))
+        #     random_wait(3.0, 4.0)
+
+        # 404
+        try:
+            driver.find_element(By.XPATH, "//h1[contains(text(), 'Такой страницы нe')]")
+        except NoSuchElementException:
+            soup = BeautifulSoup(html, "html.parser")
+            car_element = soup.find("body")
+            cars.append(car_data(car_element, car_link))
+            # random_wait(3.0, 4.0)
+        else:
+            continue
 
     return cars
-
-
-start = time.perf_counter()
-
-URL = 'https://www.avito.ru/moskva/avtomobili/novyy/genesis?radius=0&searchRadius=0'
-client = 'БорисХоф Genesis'
-autoru_name = client
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%Y.%m.%d %H:%M:%S",
-)
-
-options = uc.ChromeOptions()
-# Отключаю окно сохранения пароля
-prefs = {"credentials_enable_service": False, "profile.password_manager_enabled": False}
-options.add_experimental_option("prefs", prefs)
-
-driver = uc.Chrome(driver_executable_path=ChromeDriverManager().install(), options=options)
-
-wait = WebDriverWait(driver, 10)
-wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-
-driver.get(URL)
-
-df = pd.DataFrame({'mark_model': [], 'complectation': [], 'modification': [], 'year': [], 'dealer': [],
-                   'price_with_discount': [], 'price_no_discount': [], 'with_nds': [], 'link': [], 'condition': [],
-                   'in_stock': [], 'services': [], 'tags': [], 'photos': []})
-
-cars = parse_avito(driver)
-if cars:
-    df = df._append(dealer_data(client, cars))
-file_after_pandas = dealers_pandas(df, autoru_name)
-file_path_result = format_work(file_after_pandas, autoru_name, client)
-
-driver.quit()
-
-logging.info(f'Общее время парсинга: {time.perf_counter() - start:.3f}')

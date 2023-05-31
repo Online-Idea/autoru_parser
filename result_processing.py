@@ -3,8 +3,9 @@ from datetime import datetime
 
 import pandas as pd
 from openpyxl import load_workbook
-from openpyxl.styles import Alignment, PatternFill, Font
+from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.filters import FilterColumn
 from pandas import DataFrame
 
 
@@ -102,13 +103,6 @@ def dealers_pandas(df: DataFrame, autoru_name: str) -> str:
 
     merged_df = merged_df.fillna('')
 
-    # Очищаю повторы данных автомобиля чтобы лучше смотрелось
-    merged_df.loc[merged_df['mark_model'].duplicated(), 'mark_model'] = ''
-    is_duplicate = merged_df.duplicated(subset=['complectation', 'modification', 'year'], keep='first')
-    merged_df.loc[is_duplicate, 'complectation'] = ''
-    merged_df.loc[is_duplicate, 'modification'] = ''
-    merged_df.loc[is_duplicate, 'year'] = ''
-
     # Перевожу имена столбцов
     merged_df = merged_df.rename(columns={
         'mark_model': 'Марка, модель',
@@ -127,9 +121,22 @@ def dealers_pandas(df: DataFrame, autoru_name: str) -> str:
         'link': 'Ссылка',
     })
 
+    # Это для второго листа на котором не очищаю повторы
+    full_df = merged_df.copy()
+
+    # Очищаю повторы данных автомобиля чтобы лучше смотрелось
+    merged_df.loc[merged_df['Марка, модель'].duplicated(), 'Марка, модель'] = ''
+    is_duplicate = merged_df.duplicated(subset=['Комплектация', 'Модификация', 'Год'], keep='first')
+    merged_df.loc[is_duplicate, 'Комплектация'] = ''
+    merged_df.loc[is_duplicate, 'Модификация'] = ''
+    merged_df.loc[is_duplicate, 'Год'] = ''
+
     # Сохраняю
     file_name = 'after_pandas.xlsx'
-    merged_df.T.reset_index().T.to_excel(file_name, sheet_name='Все', header=False, index=False)
+    with pd.ExcelWriter(file_name, engine='xlsxwriter') as writer:
+        merged_df.T.reset_index().T.to_excel(writer, sheet_name='Первый вариант', header=False, index=False)
+        full_df.T.reset_index().T.to_excel(writer, sheet_name='Второй вариант', header=False, index=False)
+
     return file_name
 
 
@@ -217,84 +224,114 @@ def format_work(xlsx_file: str, autoru_name: str, client: str) -> str:
     """
     # Форматирование результата
     book = load_workbook(xlsx_file)
-    worksheet = book['Все']
+    sheets = ['Первый вариант', 'Второй вариант']
 
-    # Буквы нужных столбцов
-    price_cols = []
-    difference_cols = []
-    stock_cols = []
-    for col in range(1, worksheet.max_column + 1):
-        cell = worksheet.cell(row=1, column=col).value
-        col_letter = get_column_letter(col)
-        if cell == 'Имя дилера':
-            dealer_col = col_letter
-        elif 'цен' in cell.lower():
-            price_cols.append(col_letter)
-        elif cell == 'Ссылка':
-            link_col = col_letter
-        elif cell == 'В наличии' or cell == 'Под заказ':
-            stock_cols.append(col_letter)
-        elif 'Позиция' in cell:
-            position_actual_col = col_letter
+    for sheet in sheets:
+        worksheet = book[sheet]
 
-        if 'Разница' in cell:
-            difference_cols.append(col_letter)
+        # Буквы нужных столбцов
+        car_params = []
+        price_cols = []
+        difference_cols = []
+        stock_cols = []
+        for col in range(1, worksheet.max_column + 1):
+            cell = worksheet.cell(row=1, column=col).value
+            col_letter = get_column_letter(col)
+            if cell in ['Марка, модель', 'Комплектация', 'Модификация', 'Год']:
+                car_params.append(col)
+            elif cell == 'Имя дилера':
+                dealer_col = col_letter
+            elif 'цен' in cell.lower():
+                price_cols.append(col_letter)
+            elif cell == 'Ссылка':
+                link_col = col_letter
+            elif cell == 'В наличии' or cell == 'Под заказ':
+                stock_cols.append(col_letter)
+            elif 'Позиция' in cell:
+                position_actual_col = col_letter
 
-    # Меняю ширину столбцов
-    for column in worksheet.columns:
-        worksheet[column[0].coordinate].alignment = Alignment(wrap_text=True)
-        max_length = 0
-        column_name = column[0].column_letter
+            if 'Разница' in cell:
+                difference_cols.append(col_letter)
 
-        if column_name == link_col:
-            worksheet.column_dimensions[column_name].width = 20
-        elif column_name in price_cols or column_name in stock_cols or column_name == position_actual_col:
-            worksheet.column_dimensions[column_name].width = 13
-        else:
-            for cell in column:
-                if cell.row == 1:
-                    continue
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = (max_length + 2)
-            worksheet.column_dimensions[column_name].width = adjusted_width
+        # Границы над уникальными автомобилями
+        border = Border(top=Side(style='medium', color='000000'))
+        worksheet_full = book[sheets[1]]
+        prev_car, curr_car = '', ''
+        for row in range(2, worksheet_full.max_row + 1):
+            for car_param in car_params:
+                curr_car += str(worksheet_full.cell(row=row, column=car_param).value)
 
-    # Цвета заливок
-    blue_fill = PatternFill(start_color='DEE6EF', end_color='DEE6EF', fill_type='solid')
-    red_fill = PatternFill(start_color='E0C2CD', end_color='E0C2CD', fill_type='solid')
-    green_fill = PatternFill(start_color='DDE8CB', end_color='DDE8CB', fill_type='solid')
-    font = Font(name="Calibri", bold=True)
+            if curr_car != prev_car:
+                for col2 in range(1, worksheet.max_column + 1):
+                    cell = worksheet.cell(row=row, column=col2)
+                    cell.border = border
 
-    # Выделяю голубым нашего дилера
-    for row in range(2, worksheet.max_row + 1):
-        if worksheet[dealer_col + str(row)].value == autoru_name:
-            prices_range = worksheet[f'{dealer_col}{str(row)}:{price_cols[-1]}{str(row)}']
-            for cell in prices_range[0]:
-                cell.fill = blue_fill
-                # cell.font = font
+            prev_car = curr_car
+            curr_car = ''
 
-        # Выделяю красным тех кто дешевле нас и зеленым тех кто дороже нас
-        for col in difference_cols:
-            cell = worksheet[col + str(row)]
-            if cell.value:
-                if cell.value < 0:
-                    cell.fill = red_fill
-                elif cell.value > 0:
-                    cell.fill = green_fill
+        last_row = worksheet_full.max_row + 1
+        for col2 in range(1, worksheet.max_column + 1):
+            cell = worksheet.cell(row=last_row, column=col2)
+            cell.border = border
 
-    # Высота первой строки в 3 строки
-    worksheet.row_dimensions[1].height = 45
+        # Меняю ширину столбцов
+        for column in worksheet.columns:
+            worksheet[column[0].coordinate].alignment = Alignment(wrap_text=True)
+            max_length = 0
+            column_name = column[0].column_letter
 
-    # Выравнивание по центру первой строки и жирный шрифт
-    for cell in worksheet[1]:
-        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        cell.font = font
+            if column_name == link_col:
+                worksheet.column_dimensions[column_name].width = 20
+            elif column_name in price_cols or column_name in stock_cols or column_name == position_actual_col:
+                worksheet.column_dimensions[column_name].width = 13
+            else:
+                for cell in column:
+                    if cell.row == 1:
+                        continue
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2)
+                worksheet.column_dimensions[column_name].width = adjusted_width
 
-    # Закрепляю строки и столбцы
-    worksheet.freeze_panes = 'C2'
+        # Цвета заливок
+        blue_fill = PatternFill(start_color='DEE6EF', end_color='DEE6EF', fill_type='solid')
+        red_fill = PatternFill(start_color='E0C2CD', end_color='E0C2CD', fill_type='solid')
+        green_fill = PatternFill(start_color='DDE8CB', end_color='DDE8CB', fill_type='solid')
+        font = Font(name="Calibri", bold=True)
+
+        # Выделяю голубым нашего дилера
+        for row in range(2, worksheet.max_row + 1):
+            if worksheet[dealer_col + str(row)].value == autoru_name:
+                prices_range = worksheet[f'{dealer_col}{str(row)}:{price_cols[-1]}{str(row)}']
+                for cell in prices_range[0]:
+                    cell.fill = blue_fill
+                    # cell.font = font
+
+            # Выделяю красным тех кто дешевле нас и зеленым тех кто дороже нас
+            for col in difference_cols:
+                cell = worksheet[col + str(row)]
+                if cell.value:
+                    if cell.value < 0:
+                        cell.fill = red_fill
+                    elif cell.value > 0:
+                        cell.fill = green_fill
+
+        # Высота первой строки в 3 строки
+        worksheet.row_dimensions[1].height = 45
+
+        # Выравнивание по центру первой строки и жирный шрифт
+        for cell in worksheet[1]:
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            cell.font = font
+
+        # Закрепляю строки и столбцы
+        worksheet.freeze_panes = 'C2'
+
+        # Автофильтр
+        worksheet.auto_filter.ref = worksheet.dimensions
 
     today = datetime.now().strftime('%d.%m.%Y')
     file_name = f'Сравнение {client} {today}.xlsx'

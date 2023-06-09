@@ -56,7 +56,13 @@ def car_data(car: PageElement, dealer_name: str) -> dict:
 
     link = car.find('a', class_='ListingItemTitle__link')['href']
     condition = car.find('div', class_='ListingItem__kmAge').text
-    in_stock = car.find('div', class_='ListingItem__stock').text.replace('\xa0', ' ')
+    # Для авто с пробегом
+    condition = int(re.findall(r'\d+', condition)[0]) if 'км' in condition else condition
+
+    try:
+        in_stock = car.find('div', class_='ListingItem__stock').text.replace('\xa0', ' ')
+    except AttributeError:
+        in_stock = 'В наличии'
 
     # Имя дилера. Беру из объявления если оно там есть,
     # иначе остаётся имя нашего дилера т.к. это означает что парсим страницу дилера

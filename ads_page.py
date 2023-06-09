@@ -89,7 +89,6 @@ for _, mark in marks.iterrows():
     previous_mark = mark_name
     previous_df = df
 
-
 driver.quit()
 
 logging.info(f'Общее время парсинга: {time.perf_counter() - start:.3f}')

@@ -125,11 +125,12 @@ def dealers_pandas(df: DataFrame, autoru_name: str) -> str:
     full_df = merged_df.copy()
 
     # Очищаю повторы данных автомобиля чтобы лучше смотрелось
-    merged_df.loc[merged_df['Марка, модель'].duplicated(), 'Марка, модель'] = ''
-    is_duplicate = merged_df.duplicated(subset=['Комплектация', 'Модификация', 'Год'], keep='first')
+    is_duplicate = merged_df.duplicated(subset=['Марка, модель', 'Комплектация', 'Модификация', 'Год'], keep='first')
     merged_df.loc[is_duplicate, 'Комплектация'] = ''
     merged_df.loc[is_duplicate, 'Модификация'] = ''
     merged_df.loc[is_duplicate, 'Год'] = ''
+    merged_df.loc[merged_df['Марка, модель'].duplicated(), 'Марка, модель'] = ''
+
 
     # Сохраняю
     file_name = 'after_pandas.xlsx'

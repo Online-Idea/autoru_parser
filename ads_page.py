@@ -43,7 +43,7 @@ else:  # Для автоматического запуска
 # Сортирую по сайту, региону и марке чтобы не парсить одно и то же для разных клиентов
 marks = marks.sort_values(by=['Сайт', 'Регион', 'Марка'])
 
-previous_mark = ''
+previous_settings = ''
 previous_df: DataFrame
 
 for _, mark in marks.iterrows():
@@ -60,8 +60,9 @@ for _, mark in marks.iterrows():
     region = mark['Регион']
     client_email = mark['Почты клиентов']
 
-    # Если текущая марка не равна прошлой марке значит парсим
-    if mark_name != previous_mark:
+    # Если текущие настройки по Сайту, Региону и Марке не равны прошлым настройкам значит парсим
+    current_settings = f'{site} {region} {mark_name}'
+    if current_settings != previous_settings:
         df = pd.DataFrame({'mark_model': [], 'complectation': [], 'modification': [], 'year': [], 'dealer': [],
                            'price_with_discount': [], 'price_no_discount': [], 'with_nds': [], 'link': [],
                            'condition': [], 'in_stock': [], 'services': [], 'tags': [], 'photos': []})
@@ -86,7 +87,7 @@ for _, mark in marks.iterrows():
     if str(client_email) != 'nan':
         send_email_to_client(client_email, file_path_result)
 
-    previous_mark = mark_name
+    previous_settings = current_settings
     previous_df = df
 
 driver.quit()

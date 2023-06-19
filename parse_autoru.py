@@ -43,7 +43,8 @@ def car_data(car: PageElement, dealer_name: str) -> dict:
     year = car.find('div', class_='ListingItem__year').text
 
     # Цены
-    prices = car.find_all('div', class_='ListingItemPrice__content')
+    # prices = car.find_all('div', class_='ListingItemPrice__content')
+    prices = car.find_all('div', class_='ListingItem__price')
     price_with_discount = prices[0].text
     price_no_discount = prices[1].text if len(prices) > 1 else prices[0].text
     # Цена с НДС

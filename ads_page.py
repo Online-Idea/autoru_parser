@@ -1,4 +1,3 @@
-import sys
 import logging
 import sys
 import time
@@ -69,7 +68,7 @@ for _, mark in marks.iterrows():
 
         cars = None
         if site in ['авто.ру', 'автору']:
-            cars = parse_autoru(mark_url, driver, region, autoru_name)
+            cars = parse_autoru(mark_url, driver, region)
         elif site == 'авито':
             cars = parse_avito(mark_url, driver, mark_name)
         if cars:

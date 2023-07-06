@@ -121,7 +121,7 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
     """
     driver.get(cars_url)
 
-    wait = WebDriverWait(driver, 10)
+    wait = WebDriverWait(driver, 120)
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
     # Если прямая ссылка на марку возвращает 403 или 404 то выбираю эту марку со страницы всех автомобилей

@@ -1,4 +1,6 @@
+import logging
 import re
+import time
 
 from bs4 import BeautifulSoup
 from bs4.element import PageElement, ResultSet
@@ -25,11 +27,10 @@ def page_html(driver: Chrome) -> ResultSet:
     return current_region.find_all("div", class_="ListingItem")
 
 
-def car_data(car: PageElement, dealer_name: str) -> dict:
+def car_data(car: PageElement) -> dict:
     """
     Собирает данные одного автомобиля
     @param car: элемент от BeautifulSoup
-    @param dealer_name: имя дилера
     @return: словарь с данными автомобиля
     """
     # Инфо об автомобиле
@@ -70,16 +71,14 @@ def car_data(car: PageElement, dealer_name: str) -> dict:
     try:
         dealer_name = car.find('a', class_='ListingItem__salonName').text
     except AttributeError:
-        pass
+        dealer_name = ''
 
     # Услуги
     try:
         services = str(car.find('div', class_='ListingItem__services'))
         services_list = []
-        if 'IconSvg_vas-premium' in services:
+        if 'IconSvg_vas-premium' in services or 'IconSvg_vas-icon-top-small' in services:
             services_list.append('премиум')
-        if 'IconSvg_vas-icon-top-small' in services:
-            services_list.append('поднятие в топ')
         if 'IconSvg_vas-icon-fresh' in services:
             services_list.append('поднятие в поиске')
         services = ' | '.join(services_list)
@@ -123,13 +122,13 @@ def car_data(car: PageElement, dealer_name: str) -> dict:
     }
 
 
-def parse_autoru(cars_url: str, driver: Chrome, region: str = None, dealer_name: str = None) -> list[dict]:
+def parse_autoru(cars_url: str, driver: Chrome, region: str = None, first_page=False) -> list[dict]:
     """
     Парсит страницу дилера
     @param cars_url: ссылка на страницу дилера
     @param driver: driver браузера
     @param region: регион
-    @param dealer_name: имя дилера
+    @param first_page: если нужна только первая страница, для сбора услуг
     @return: лист словарей с данными автомобилей
     """
     driver.get(cars_url)
@@ -148,7 +147,10 @@ def parse_autoru(cars_url: str, driver: Chrome, region: str = None, dealer_name:
 
     rows = page_html(driver)
     for row in rows:
-        cars.append(car_data(row, dealer_name))
+        cars.append(car_data(row))
+
+    if first_page:
+        return cars
 
     # Пагинация
     try:
@@ -163,7 +165,7 @@ def parse_autoru(cars_url: str, driver: Chrome, region: str = None, dealer_name:
 
         rows = page_html(driver)
         for row in rows:
-            cars.append(car_data(row, dealer_name))
+            cars.append(car_data(row))
 
         next_page = driver.find_element(By.CLASS_NAME, "ListingPagination__next")
         next_page_class = next_page.get_attribute('class')

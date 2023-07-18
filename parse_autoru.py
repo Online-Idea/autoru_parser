@@ -50,11 +50,13 @@ def car_data(car: PageElement) -> dict:
     price_no_discount = prices[1].text if len(prices) > 1 else prices[0].text
     # Цена с НДС
     try:
-        with_nds = car.find('div', class_='ListingItem__withNds').text
+        car.find('div', class_='ListingItem__withNds').text
     except NoSuchElementException:
         with_nds = False
     except AttributeError:
         with_nds = False
+    else:
+        with_nds = True
 
     link = car.find('a', class_='ListingItemTitle__link')['href']
     condition = car.find('div', class_='ListingItem__kmAge').text

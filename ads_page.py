@@ -14,7 +14,7 @@ from email_sender import send_email_to_client
 from parse_autoru import parse_autoru
 from parse_avito import parse_avito
 from random_wait import random_wait
-from result_processing import format_work, dealer_data, dealers_pandas
+from result_processing import format_work, dealer_data, dealers_pandas, final_file_path
 
 start = time.perf_counter()
 
@@ -42,6 +42,12 @@ else:  # Для автоматического запуска
 # Сортирую по сайту, региону и марке чтобы не парсить одно и то же для разных клиентов
 marks = marks.sort_values(by=['Сайт', 'Регион', 'Марка'])
 
+# Считаю по почте. Это нужно для того чтобы в дальнейшем отправлять одно письмо с несколькими файлами
+# вместо нескольких писем с одним файлом
+emails_count = marks[marks['Активно'] == 'да']['Почты клиентов'].value_counts()
+# Для каждого значения почт создаю список и добавляю его в словарь
+emails_files = {i: [] for i in emails_count.index}
+
 previous_settings = ''
 previous_df: DataFrame
 
@@ -50,14 +56,20 @@ for _, mark in marks.iterrows():
     if str(mark['Активно']).lower() != 'да':
         continue
 
+    # Настройки парсера
     logging.info(f'\n{mark}')
     client = mark['Наш клиент']
     autoru_name = mark['Имя клиента на авто.ру']
     mark_name = mark['Марка']
     site = mark['Сайт'].lower()
     mark_url = mark['Ссылка']
+    if '?output_type=list' not in mark_url:
+        mark_url += '?output_type=list'
     region = mark['Регион']
     client_email = mark['Почты клиентов']
+
+    # Путь к готовому файлу
+    final_file = final_file_path(client, site)
 
     # Если текущие настройки по Сайту, Региону и Марке не равны прошлым настройкам значит парсим
     current_settings = f'{site} {region} {mark_name}'
@@ -72,7 +84,7 @@ for _, mark in marks.iterrows():
         elif site == 'авито':
             cars = parse_avito(mark_url, driver, mark_name)
         if cars:
-            df = df._append(dealer_data(client, cars))
+            df = df._append(dealer_data(client, cars, final_file))
 
         file_after_pandas = dealers_pandas(df, autoru_name)
         random_wait()
@@ -81,10 +93,13 @@ for _, mark in marks.iterrows():
     else:
         file_after_pandas = dealers_pandas(previous_df, autoru_name)
 
-    file_path_result = format_work(file_after_pandas, autoru_name, client)
-
+    format_work(file_after_pandas, autoru_name, final_file)
+    
     if str(client_email) != 'nan':
-        send_email_to_client(client_email, file_path_result)
+        emails_files[client_email].append(final_file)
+
+        if len(emails_files[client_email]) == emails_count[client_email]:
+            send_email_to_client(client_email, emails_files[client_email])
 
     previous_settings = current_settings
     previous_df = df

@@ -3,7 +3,7 @@ import re
 
 import requests
 from bs4 import BeautifulSoup, PageElement
-from selenium.common import NoSuchElementException
+from selenium.common import NoSuchElementException, StaleElementReferenceException
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
@@ -35,81 +35,87 @@ def car_data(car: PageElement, link: str) -> dict:
     """
     # Инфо об автомобиле
     try:
-        mark_model = car.find('span', class_='title-info-title-text').text \
-            .split(',')[0]
-    except AttributeError:
-        logging.info(car)
+        try:
+            mark_model = car.find('span', class_='title-info-title-text').text \
+                .split(',')[0]
+        except AttributeError:
+            logging.info(car)
+            return {}
+        try:
+            generation = car.find(lambda tag: tag.name == 'span' and 'Поколение' in tag.text) \
+                .parent.text.replace('Поколение: ', '')
+            generation = generation[:generation.find('(')].strip()
+        except AttributeError:
+            generation = ''
+        mark_model = f'{mark_model} {generation}'
+        complectation = car.find(lambda tag: tag.name == 'span' and 'Комплектация' in tag.text)
+        if complectation:
+            complectation = complectation.parent.text.replace('Комплектация: ', '')
+        try:
+            capacity = car.find(lambda tag: tag.name == 'span' and 'Объём двигателя' in tag.text) \
+                .parent.text.replace('Объём двигателя: ', '')
+        except AttributeError:
+            capacity = '0'
+        engine = car.find(lambda tag: tag.name == 'span' and 'Модификация' in tag.text) \
+            .parent.text.replace('Модификация: ', '')
+        power = re.search(r'\((.*?)\)', engine).group(1)
+        engine_type = car.find(lambda tag: tag.name == 'span' and 'Тип двигателя' in tag.text) \
+            .parent.text.replace('Тип двигателя: ', '')
+        transmission = car.find(lambda tag: tag.name == 'span' and 'Коробка передач' in tag.text) \
+            .parent.text.replace('Коробка передач: ', '')
+        drive = car.find(lambda tag: tag.name == 'span' and 'Привод' in tag.text) \
+            .parent.text.replace('Привод: ', '')
+        body = car.find(lambda tag: tag.name == 'span' and 'Тип кузова' in tag.text) \
+            .parent.text.replace('Тип кузова: ', '').replace('-дверный', ' дв.')
+        modification = '/'.join([body, capacity, power, engine_type, transmission, drive]).replace('/', ' / ').lower()
+        year = car.find(lambda tag: tag.name == 'span' and 'Год выпуска' in tag.text) \
+            .parent.text.replace('Год выпуска: ', '')
+
+        # Цены
+        price = car.select_one('[class*="style-price-value-main"]')
+        price_with_discount = price.text
+        price_no_discount = price.findChild("span").get('content')
+        # Цена с НДС (пока по умолчанию False до тех пор, пока авито не введёт это поле)
+        with_nds = False
+
+        condition = car.select_one('[class*="style-newLabel"]').text
+        try:
+            in_stock = car.select_one('[class*="CardBadge-title"]').text
+        except AttributeError:
+            in_stock = 'На заказ'
+        dealer_name = car.select_one('[class*="style-seller-info-name"]')
+        dealer_name = dealer_name.select_one('a').text
+
+        # Услуги
+        services = ''
+
+        # Стикеры
+        tags = ''
+
+        # Количество фото
+        try:
+            photos = len(car.select_one('[class*="images-preview-previewWrapper"]'))
+        except TypeError:
+            photos = 1
+
+        return {
+            "mark_model": mark_model,
+            "complectation": complectation,
+            "modification": modification,
+            "year": year,
+            "dealer": dealer_name,
+            "price_with_discount": price_with_discount,
+            "price_no_discount": price_no_discount,
+            "with_nds": with_nds,
+            "link": link,
+            "condition": condition,
+            "in_stock": in_stock,
+            "services": services,
+            "tags": tags,
+            "photos": photos,
+        }
+    except:
         return {}
-    generation = car.find(lambda tag: tag.name == 'span' and 'Поколение' in tag.text) \
-        .parent.text.replace('Поколение: ', '')
-    generation = generation[:generation.find('(')].strip()
-    mark_model = f'{mark_model} {generation}'
-    complectation = car.find(lambda tag: tag.name == 'span' and 'Комплектация' in tag.text)
-    if complectation:
-        complectation = complectation.parent.text.replace('Комплектация: ', '')
-    try:
-        capacity = car.find(lambda tag: tag.name == 'span' and 'Объём двигателя' in tag.text) \
-            .parent.text.replace('Объём двигателя: ', '')
-    except AttributeError:
-        capacity = '0'
-    engine = car.find(lambda tag: tag.name == 'span' and 'Модификация' in tag.text) \
-        .parent.text.replace('Модификация: ', '')
-    power = re.search(r'\((.*?)\)', engine).group(1)
-    engine_type = car.find(lambda tag: tag.name == 'span' and 'Тип двигателя' in tag.text) \
-        .parent.text.replace('Тип двигателя: ', '')
-    transmission = car.find(lambda tag: tag.name == 'span' and 'Коробка передач' in tag.text) \
-        .parent.text.replace('Коробка передач: ', '')
-    drive = car.find(lambda tag: tag.name == 'span' and 'Привод' in tag.text) \
-        .parent.text.replace('Привод: ', '')
-    body = car.find(lambda tag: tag.name == 'span' and 'Тип кузова' in tag.text) \
-        .parent.text.replace('Тип кузова: ', '').replace('-дверный', ' дв.')
-    modification = '/'.join([body, capacity, power, engine_type, transmission, drive]).replace('/', ' / ').lower()
-    year = car.find(lambda tag: tag.name == 'span' and 'Год выпуска' in tag.text) \
-        .parent.text.replace('Год выпуска: ', '')
-
-    # Цены
-    price = car.select_one('[class*="style-price-value-main"]')
-    price_with_discount = price.text
-    price_no_discount = price.findChild("span").get('content')
-    # Цена с НДС (пока по умолчанию False до тех пор, пока авито не введёт это поле)
-    with_nds = False
-
-    condition = car.select_one('[class*="style-newLabel"]').text
-    try:
-        in_stock = car.select_one('[class*="CardBadge-title"]').text
-    except AttributeError:
-        in_stock = 'На заказ'
-    dealer_name = car.select_one('[class*="style-seller-info-name"]')
-    dealer_name = dealer_name.select_one('a').text
-
-    # Услуги
-    services = ''
-
-    # Стикеры
-    tags = ''
-
-    # Количество фото
-    try:
-        photos = len(car.select_one('[class*="images-preview-previewWrapper"]'))
-    except TypeError:
-        photos = 1
-
-    return {
-        "mark_model": mark_model,
-        "complectation": complectation,
-        "modification": modification,
-        "year": year,
-        "dealer": dealer_name,
-        "price_with_discount": price_with_discount,
-        "price_no_discount": price_no_discount,
-        "with_nds": with_nds,
-        "link": link,
-        "condition": condition,
-        "in_stock": in_stock,
-        "services": services,
-        "tags": tags,
-        "photos": photos,
-    }
 
 
 def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
@@ -121,7 +127,7 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
     """
     driver.get(cars_url)
 
-    wait = WebDriverWait(driver, 120)
+    wait = WebDriverWait(driver, 360)
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
     # Если прямая ссылка на марку возвращает 403 или 404 то выбираю эту марку со страницы всех автомобилей
@@ -130,8 +136,12 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
         url_with_region = cars_url[:cars_url.find('avtomobili')]
         avito_autos_url = f'{url_with_region}/transport'
         driver.get(avito_autos_url)
-        all_marks = driver.find_element(By.CSS_SELECTOR, 'button[data-marker="popular-rubricator/controls/all"]')
-        all_marks.click()
+        try:
+            all_marks = driver.find_element(By.CSS_SELECTOR, 'button[data-marker="popular-rubricator/controls/all"]')
+            all_marks.click()
+        except StaleElementReferenceException:
+            all_marks = driver.find_element(By.CSS_SELECTOR, 'button[data-marker="popular-rubricator/controls/all"]')
+            all_marks.click()
         mark_on_site = driver.find_element(By.CSS_SELECTOR, f'a[title={mark}]')
         mark_on_site.click()
         new = driver.find_element(By.XPATH, "//span[contains(text(),'Новые')]")
@@ -220,10 +230,16 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
         try:
             driver.find_element(By.XPATH, "//h1[contains(text(), 'Такой страницы нe')]")
         except NoSuchElementException:
-            soup = BeautifulSoup(html, "html.parser")
-            car_element = soup.find("body")
-            cars.append(car_data(car_element, car_link))
-            # random_wait(3.0, 4.0)
+            # Если объявление сняли
+            try:
+                driver.find_element(By.XPATH, "//span[contains(text(), 'Объявление снято с публикации')]")
+            except NoSuchElementException:
+                soup = BeautifulSoup(html, "html.parser")
+                car_element = soup.find("body")
+                cars.append(car_data(car_element, car_link))
+                # random_wait(3.0, 4.0)
+            else:
+                continue
         else:
             continue
 

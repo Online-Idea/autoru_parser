@@ -79,7 +79,7 @@ def car_data(car: PageElement) -> dict:
     try:
         services = str(car.find('div', class_='ListingItem__services'))
         services_list = []
-        if 'IconSvg_vas-premium' in services or 'IconSvg_vas-icon-top-small' in services:
+        if any(service in services for service in ['IconSvg_vas-premium', 'IconSvg_vas-icon-top-small', 'IconSvg_name_SvgVasIconTopSmall']):
             services_list.append('премиум')
         if 'IconSvg_vas-icon-fresh' in services:
             services_list.append('поднятие в поиске')

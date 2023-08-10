@@ -27,7 +27,7 @@ COLUMNS_RUS = {
     'price_with_discount': 'Цена со скидками',
     'price_no_discount': 'Цена без скидок',
     'with_nds': 'Цена с НДС',
-    'condition': 'Состояние',
+    'condition': 'Состояние/пробег',
     'in_stock': 'Наличие',
     'services': 'Услуги',
     'tags': 'Стикеры',
@@ -403,6 +403,11 @@ def format_work(xlsx_file: str, autoru_name: str, final_file: str) -> None:
 
     # Двигаю лист Выдачи правее Сравнительных
     final_file_wb.move_sheet('Выдача', 2)
+
+    # Ставлю активным первый лист. Если этого не делать то почему-то листы Первый вариант и Выдача выходят
+    # сгруппированными
+    final_file_wb.active = 0
+    final_file_wb['Выдача'].views.sheetView[0].tabSelected = False
 
     after_pandas_wb.close()
     final_file_wb.save(final_file)

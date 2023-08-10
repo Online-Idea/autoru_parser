@@ -4,7 +4,11 @@ import time
 
 import pandas as pd
 import undetected_chromedriver as uc
+from openpyxl.reader.excel import load_workbook
+from openpyxl.workbook import Workbook
 from pandas import DataFrame
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
@@ -24,12 +28,16 @@ logging.basicConfig(
     datefmt="%Y.%m.%d %H:%M:%S",
 )
 
+# service = Service(ChromeDriverManager(version="113.0.5672.63").install())
+service = Service()
 options = uc.ChromeOptions()
 # Отключаю окно сохранения пароля
 prefs = {"credentials_enable_service": False, "profile.password_manager_enabled": False}
 options.add_experimental_option("prefs", prefs)
 
-driver = uc.Chrome(driver_executable_path=ChromeDriverManager().install(), options=options)
+# driver = uc.Chrome(driver_executable_path=ChromeDriverManager().install(), options=options)
+driver = webdriver.Chrome(options=options, service=service)
+# driver = uc.Chrome(service=service, options=options)
 
 wait = WebDriverWait(driver, 10)
 wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
@@ -50,6 +58,7 @@ emails_files = {i: [] for i in emails_count.index}
 
 previous_settings = ''
 previous_df: DataFrame
+previous_final_file = ''
 
 for _, mark in marks.iterrows():
     # Только активные
@@ -63,8 +72,6 @@ for _, mark in marks.iterrows():
     mark_name = mark['Марка']
     site = mark['Сайт'].lower()
     mark_url = mark['Ссылка']
-    if '?output_type=list' not in mark_url:
-        mark_url += '?output_type=list'
     region = mark['Регион']
     client_email = mark['Почты клиентов']
 
@@ -91,6 +98,16 @@ for _, mark in marks.iterrows():
 
     # Иначе берём уже спарсенные объявления
     else:
+        # Беру выдачу с прошлого файла и сохраняю в новом
+        previous_workbook = load_workbook(previous_final_file)
+        previous_ads_sheet = previous_workbook['Выдача']
+        current_workbook = Workbook()
+        current_ads_sheet = current_workbook.active
+        current_ads_sheet.title = 'Выдача'
+        for row in previous_ads_sheet.iter_rows(values_only=True):
+            current_ads_sheet.append(row)
+        current_workbook.save(final_file)
+
         file_after_pandas = dealers_pandas(previous_df, autoru_name)
 
     format_work(file_after_pandas, autoru_name, final_file)
@@ -103,6 +120,7 @@ for _, mark in marks.iterrows():
 
     previous_settings = current_settings
     previous_df = df
+    previous_final_file = final_file
 
 driver.quit()
 

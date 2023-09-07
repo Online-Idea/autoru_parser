@@ -24,7 +24,10 @@ def page_html(driver: Chrome) -> ResultSet:
     html = driver.page_source
     soup = BeautifulSoup(html, "html.parser")
     current_region = soup.find("div", class_="ListingCars_outputType_list")
-    return current_region.find_all("div", class_="ListingItem")
+    try:
+        return current_region.find_all("div", class_="ListingItem")
+    except AttributeError:
+        return
 
 
 def car_data(car: PageElement) -> dict:
@@ -77,11 +80,12 @@ def car_data(car: PageElement) -> dict:
 
     # Услуги
     try:
-        services = str(car.find('div', class_='ListingItem__services'))
+        # services = str(car.find('div', class_='ListingItem__services'))
+        services = str(car.find('div', class_='ListingItem__placeBlock'))
         services_list = []
         if any(service in services for service in ['IconSvg_vas-premium', 'IconSvg_vas-icon-top-small', 'IconSvg_name_SvgVasIconTopSmall']):
             services_list.append('премиум')
-        if 'IconSvg_vas-icon-fresh' in services:
+        if any(service in services for service in ['IconSvg_vas-icon-fresh', 'IconSvg_name_SvgVasIconFresh', 'MetroListPlace__content ']):
             services_list.append('поднятие в поиске')
         services = ' | '.join(services_list)
     except NoSuchElementException:
@@ -133,37 +137,69 @@ def parse_autoru(cars_url: str, driver: Chrome, region: str = None, first_page=F
     @param first_page: если нужна только первая страница, для сбора услуг
     @return: лист словарей с данными автомобилей
     """
+    cars = []
+
     driver.get(cars_url)
 
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
+    WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
 
     # Клик по 0, 0 на случай если авто.ру показывает pop up
     actions = ActionChains(driver)
     actions.move_by_offset(0, 0).click().perform()
 
     # Меняю регион
-    change_geo(driver, region)
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
-
-    cars = []
-
-    rows = page_html(driver)
-    for row in rows:
-        cars.append(car_data(row))
-
-    if first_page:
-        return cars
+    if region:
+        change_geo(driver, region)
+        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
 
     # Пагинация
+    total_pages = ''
     try:
         next_page = driver.find_element(By.CLASS_NAME, "ListingPagination__next")
     except NoSuchElementException:
         next_page = False
+    else:
+        total_pages = driver.find_elements(By.CLASS_NAME, 'ListingPagination__page')
+        total_pages = list(total_pages)[-1].text
+        current_page = 1
+        logging.info(f'Страница {current_page:3} из {total_pages:3}')
 
+    # У авто.ру лимит на 99 страниц объявлений - в таких случаях собираю по моделям
+    if total_pages == '99':
+        try:
+            all_models = driver.find_element(By.CLASS_NAME, 'ListingPopularMMM__expandLink')
+            all_models.click()
+        except NoSuchElementException:
+            pass
+        models_elements = driver.find_elements(By.CLASS_NAME, 'ListingPopularMMM__itemName')
+        models_links = [e.get_attribute('href') for e in models_elements]
+        models_links = [f'{link}?output_type=list' for link in models_links]
+        for link in models_links:
+            cars.extend(parse_autoru(link, driver))
+        return cars
+
+    # Первая страница
+    rows = page_html(driver)
+    if rows:
+        for row in rows:
+            cars.append(car_data(row))
+    else:
+        return []
+
+    total_ads = driver.find_element(By.CLASS_NAME, 'ButtonWithLoader__content').text
+    total_ads = re.findall(r'\d+', total_ads)[0]
+    logging.info(f'Всего объявлений: {total_ads}')
+
+    if first_page:
+        return cars
+
+    # Остальные страницы
     while next_page:
         next_page.click()
+        current_page += 1
+        logging.info(f'Страница {current_page:3} из {total_pages:3}')
         random_wait()
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'ListingCars_outputType_list')))
+        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CLASS_NAME, 'ListingCars_outputType_list')))
 
         rows = page_html(driver)
         for row in rows:

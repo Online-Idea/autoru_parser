@@ -1,6 +1,7 @@
 from datetime import date
 import os
 import smtplib
+import zipfile
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -10,7 +11,7 @@ def send_email_to_client(client_email: str, file_paths: list) -> None:
     """
     Отправляет письмо с файлом
     @param client_email: почты получателей, разделены запятой
-    @param file_paths: путь к файлу
+    @param file_paths: путь к файлам
     """
     # Инфо письма
     sender = os.environ['email_login']
@@ -42,6 +43,19 @@ def send_email_to_client(client_email: str, file_paths: list) -> None:
             attachment = MIMEApplication(f.read(), _subtype='xlsx')
             attachment.add_header('Content-Disposition', 'attachment', filename=file_name_ext)
             msg.attach(attachment)
+    
+    # Попытка отправка архива
+    # path = 'C:\temp\mail_files'
+    # archive_name = 'my_archive.zip'
+    # zipf = zipfile.ZipFile(archive_name, 'w', zipfile.ZIP_DEFLATED)
+    # for root, dirs, files in os.walk(path):
+        # for file in files:
+            # zipf.write(os.path.join(root, file))
+    # zipf.close()
+    # with open(archive_name, 'rb') as f:
+        # attachment = MIMEApplication(f.read(), _subtype='.zip')
+        # attachment.add_header('Content-Disposition', 'attachment', filename=archive_name)
+        # msg.attach(attachment)
 
     # Отправляю письмо
     with smtplib.SMTP_SSL('smtp.yandex.ru', 465) as smtp:

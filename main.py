@@ -28,7 +28,7 @@ options.add_experimental_option("prefs", prefs)
 
 driver = uc.Chrome(driver_executable_path=ChromeDriverManager().install(), options=options)
 
-wait = WebDriverWait(driver, 10)
+wait = WebDriverWait(driver, 120)
 wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
 our_clients = pd.read_excel('start.xlsx', sheet_name='По дилеру')['Наш клиент']

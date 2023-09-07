@@ -94,7 +94,7 @@ def cabinet_pivot():
     driver = uc.Chrome(driver_executable_path=ChromeDriverManager().install(), options=options)
 
     driver.get('https://agency.auto.ru/dashboard/')
-    wait = WebDriverWait(driver, 10)
+    wait = WebDriverWait(driver, 120)
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
     # Авторизация

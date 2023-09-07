@@ -13,6 +13,10 @@ from undetected_chromedriver import Chrome
 from random_wait import random_wait
 
 
+RANDOM_MIN = 10
+RANDOM_MAX = 15
+
+
 def page_html(driver: Chrome) -> list[str]:
     """
     Собирает ссылки на объявления с текущей страницы
@@ -155,7 +159,7 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
             pass
         else:
             third_page.click()
-            random_wait()
+            random_wait(RANDOM_MIN, RANDOM_MAX)
             wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
             first_page = driver.find_element(By.CSS_SELECTOR, 'a[aria-label="Страница 1"]')
             first_page.click()
@@ -185,7 +189,7 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
 
     while next_page and not other_cities:
         next_page.click()
-        random_wait()
+        random_wait(RANDOM_MIN, RANDOM_MAX)
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
         cars_links += page_html(driver)
@@ -212,7 +216,7 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
     for i, car_link in enumerate(cars_links):
         logging.info(f'Объявление {i + 1:4} из {len_cars_links}, {car_link}')
 
-        random_wait(min_wait=3, max_wait=4)
+        random_wait(RANDOM_MIN, RANDOM_MAX)
         driver.get(car_link)
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[class*='index-logo']")))
 

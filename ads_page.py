@@ -39,7 +39,7 @@ options.add_experimental_option("prefs", prefs)
 driver = webdriver.Chrome(options=options, service=service)
 # driver = uc.Chrome(service=service, options=options)
 
-wait = WebDriverWait(driver, 10)
+wait = WebDriverWait(driver, 120)
 wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
 if len(sys.argv) > 1 and sys.argv[1] == '--by_request':  # Одинарный запуск
@@ -90,8 +90,11 @@ for _, mark in marks.iterrows():
             cars = parse_autoru(mark_url, driver, region)
         elif site == 'авито':
             cars = parse_avito(mark_url, driver, mark_name)
+
         if cars:
             df = df._append(dealer_data(client, cars, final_file))
+        else:  # Нет объявлений
+            continue
 
         file_after_pandas = dealers_pandas(df, autoru_name)
         random_wait()

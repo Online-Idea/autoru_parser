@@ -15,7 +15,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 from email_sender import send_email_to_client
-from parse_autoru import parse_autoru
+from parse_autoru import parse_autoru_mark
 from parse_avito import parse_avito
 from random_wait import random_wait
 from result_processing import format_work, dealer_data, dealers_pandas, final_file_path
@@ -87,7 +87,7 @@ for _, mark in marks.iterrows():
 
         cars = None
         if site in ['авто.ру', 'автору']:
-            cars = parse_autoru(mark_url, driver, region)
+            cars = parse_autoru_mark(mark_url, driver, region)
         elif site == 'авито':
             cars = parse_avito(mark_url, driver, mark_name)
 

@@ -129,6 +129,8 @@ def process_raw_ads(df: DataFrame) -> DataFrame:
     # Убираю больше ненужное 'empty' из комплектаций
     df['complectation'] = df['complectation'].str.replace('empty', '')
 
+    # TODO здесь отправлять в бд
+
     return df
 
 

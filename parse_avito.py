@@ -131,12 +131,14 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
     """
     driver.get(cars_url)
 
+    cars = []
+
     wait = WebDriverWait(driver, 360)
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
     # Если прямая ссылка на марку возвращает 403 или 404 то выбираю эту марку со страницы всех автомобилей
     response = requests.get(driver.current_url)
-    if response.status_code in [403, 404]:
+    if response.status_code in [403, 404] and 'avtomobili' in cars_url:
         url_with_region = cars_url[:cars_url.find('avtomobili')]
         avito_autos_url = f'{url_with_region}/transport'
         driver.get(avito_autos_url)
@@ -171,8 +173,10 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
     actions = ActionChains(driver)
     actions.move_by_offset(0, 0).click().perform()
 
-    cars = []
-    cars_links = page_html(driver)
+    if 'avtomobili' in cars_url:
+        cars_links = page_html(driver)
+    else:
+        cars.extend(parse_pages(driver))
 
     # Пагинация
     # Следующая страница
@@ -192,7 +196,10 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
         random_wait(RANDOM_MIN, RANDOM_MAX)
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
-        cars_links += page_html(driver)
+        if 'avtomobili' in cars_url:
+            cars_links += page_html(driver)
+        else:
+            cars.extend(parse_pages(driver))
 
         try:
             next_page = driver.find_element(By.CSS_SELECTOR, "li[class*='styles-module-listItem_arrow_next']")
@@ -211,7 +218,15 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
         except NoSuchElementException:
             other_cities = False
 
+    return cars
+
+
+def parse_ads(driver, cars_links):
     # Парсинг объявлений
+    wait = WebDriverWait(driver, 360)
+    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+    cars = []
     len_cars_links = len(cars_links)
     for i, car_link in enumerate(cars_links):
         logging.info(f'Объявление {i + 1:4} из {len_cars_links}, {car_link}')
@@ -246,5 +261,84 @@ def parse_avito(cars_url: str, driver: Chrome, mark: str) -> list[dict]:
                 continue
         else:
             continue
+    return cars
+
+
+def parse_pages(driver):
+    # Парсинг страниц объявлений (первоначально писал под коммерческие, возможно для других нужно переписать)
+    html = driver.page_source
+    soup = BeautifulSoup(html, "html.parser")
+    ads = soup.select('div[data-marker="item"]')
+    cars = []
+
+    for ad in ads:
+        title = ad.select_one('h3[itemprop="name"]').text.split(',')
+        mark_model = title[0]
+        try:
+            tech_params = ad.select_one('p[data-marker="item-specific-params"]').text
+        except AttributeError:
+            tech_params = ''
+        if 'моточас' in tech_params:
+            # писал по примеру: 1 моточас, ковш 0.9 м3,экспл. масса 21.4 т
+            try:
+                modification = tech_params.split(',')[1]
+            except IndexError:  # если только моточас без остального текста
+                modification = ''
+        else:
+            modification = tech_params
+        modification = modification.lower()
+
+        year = title[-1]
+
+        try:
+            dealer_name = ad.select_one('div[class*="iva-item-sellerInfo"] p').text
+        except AttributeError:
+            dealer_name = ''
+
+        # Цены
+        price = ad.select_one('p[data-marker="item-price"]').text
+        price_with_discount = re.sub(r'\D', '', price)
+        price_no_discount = price_with_discount
+        with_nds = True if 'с НДС' in price else False
+
+        if 'моточас' in tech_params:
+            condition = tech_params.split(',')[0]
+        else:
+            condition = 'новый'
+
+        try:
+            badge = ad.select_one('span[class*="SnippetBadge-title-oSImJ"]').text
+            if 'В наличии' in badge:
+                in_stock = 'В наличии'
+            else:
+                in_stock = badge
+        except AttributeError:
+            in_stock = 'На заказ'
+
+        services = ''
+        tags = ''
+
+        link_element = ad.select_one('a[itemprop="url"]')
+        link = f"https://www.avito.ru/{link_element['href']}"
+
+        start = int(link_element['title'].find('»')) + 2
+        photos = re.sub(r'\D', '', link_element['title'][start:])
+
+        cars.append({
+            "mark_model": mark_model,
+            "complectation": '',
+            "modification": modification,
+            "year": year,
+            "dealer": dealer_name,
+            "price_with_discount": price_with_discount,
+            "price_no_discount": price_no_discount,
+            "with_nds": with_nds,
+            "link": link,
+            "condition": condition,
+            "in_stock": in_stock,
+            "services": services,
+            "tags": tags,
+            "photos": photos,
+        })
 
     return cars

@@ -78,8 +78,8 @@ for _, mark in marks.iterrows():
     # Путь к готовому файлу
     final_file = final_file_path(client, site)
 
-    # Если текущие настройки по Сайту, Региону и Марке не равны прошлым настройкам значит парсим
-    current_settings = f'{site} {region} {mark_name}'
+    # Если текущие настройки по Сайту, Региону, Марке и Ссылке не равны прошлым настройкам значит парсим
+    current_settings = f'{site} {region} {mark_name} {mark_url}'
     if current_settings != previous_settings:
         df = pd.DataFrame({'mark_model': [], 'complectation': [], 'modification': [], 'year': [], 'dealer': [],
                            'price_with_discount': [], 'price_no_discount': [], 'with_nds': [], 'link': [],

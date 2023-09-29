@@ -30,20 +30,28 @@ def page_html(driver: Chrome) -> ResultSet:
         return
 
 
-def car_data(car: PageElement) -> dict:
+def car_data(car: PageElement, commercial: bool = False) -> dict:
     """
     Собирает данные одного автомобиля
     @param car: элемент от BeautifulSoup
+    @param commercial: для коммерческих автомобилей
     @return: словарь с данными автомобиля
     """
     # Инфо об автомобиле
     mark_model = car.find('a', class_='ListingItemTitle__link').text
-    complectation = car.select_one('div.ListingItem__summary > div > div:nth-child(2) > div:nth-child(2)').text
-    engine = car.select_one('div.ListingItem__summary > div > div:nth-child(1) > div:nth-child(1)').text
-    transmission = car.select_one('div.ListingItem__summary > div > div:nth-child(1) > div:nth-child(2)').text
-    drive = car.select_one('div.ListingItem__summary > div > div:nth-child(2) > div:nth-child(1)').text
-    body = car.select_one('div.ListingItem__summary > div > div:nth-child(1) > div:nth-child(3)').text
-    modification = '/'.join([body, engine, transmission, drive]).replace('/', ' / ').lower()
+    if not commercial:
+        complectation = car.select_one('div.ListingItem__summary > div > div:nth-child(2) > div:nth-child(2)').text
+        engine = car.select_one('div.ListingItem__summary > div > div:nth-child(1) > div:nth-child(1)').text
+        transmission = car.select_one('div.ListingItem__summary > div > div:nth-child(1) > div:nth-child(2)').text
+        drive = car.select_one('div.ListingItem__summary > div > div:nth-child(2) > div:nth-child(1)').text
+        body = car.select_one('div.ListingItem__summary > div > div:nth-child(1) > div:nth-child(3)').text
+        modification = '/'.join([body, engine, transmission, drive]).replace('/', ' / ').lower()
+    else:
+        complectation = ''
+        tech_specs = car.find('div', class_='ListingItemTechSummaryDesktop__column')
+        cells = tech_specs.find_all('div', class_='ListingItemTechSummaryDesktop__cell')
+        modification = ' / '.join([cell.text for cell in cells])
+        print(f'{modification=}')
     year = car.find('div', class_='ListingItem__year').text
 
     # Цены
@@ -184,6 +192,13 @@ def parse_autoru_model(cars_url: str, driver: Chrome) -> list[dict]:
 
     driver.get(cars_url)
 
+    # Проверяю если коммерческие автомобили
+    category = cars_url.split('/')[4]
+    if category != 'cars':
+        commercial = True
+    else:
+        commercial = False
+
     # Пагинация
     total_pages = ''
     try:
@@ -200,7 +215,7 @@ def parse_autoru_model(cars_url: str, driver: Chrome) -> list[dict]:
     rows = page_html(driver)
     if rows:
         for row in rows:
-            cars.append(car_data(row))
+            cars.append(car_data(row, commercial=commercial))
     else:
         return []
 
@@ -219,7 +234,7 @@ def parse_autoru_model(cars_url: str, driver: Chrome) -> list[dict]:
 
         rows = page_html(driver)
         for row in rows:
-            cars.append(car_data(row))
+            cars.append(car_data(row, commercial=commercial))
 
         next_page = driver.find_element(By.CLASS_NAME, "ListingPagination__next")
         next_page_class = next_page.get_attribute('class')

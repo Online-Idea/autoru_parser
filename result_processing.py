@@ -2,6 +2,8 @@ import os
 from datetime import datetime
 
 import pandas as pd
+import requests
+import pickle
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
 from openpyxl.utils import get_column_letter
@@ -55,12 +57,13 @@ def final_file_path(client: str, site: str) -> str:
     return os.path.join('results', file_name)
 
 
-def dealer_data(client: str, cars: list[dict], final_file: str) -> DataFrame:
+def dealer_data(client: str, cars: list[dict], final_file: str, region: str) -> DataFrame:
     """
     Обработка данных объявления
     @param client: имя нашего клиента
     @param cars: лист словарей с данными автомобилей
     @param final_file: путь к готовому файлу
+    @param region: регион
     @return: Pandas DataFrame с автомобилями дилера
     """
     df = pd.DataFrame.from_records(cars)
@@ -92,9 +95,17 @@ def dealer_data(client: str, cars: list[dict], final_file: str) -> DataFrame:
              'position_actual', 'position_total',
              'link', 'condition', 'in_stock', 'services', 'tags', 'photos']]
 
+    # Заменяю особые символы
+    df['modification'] = df['modification'].str.replace('\u2009', '')
+    df['modification'] = df['modification'].str.replace('\xa0', ' ')
+
     # Сохраняю выдачу
     with pd.ExcelWriter(final_file, engine='xlsxwriter') as writer:
         df.T.reset_index().T.to_excel(writer, sheet_name='Выдача', header=False, index=False)
+
+    url = 'http://127.0.0.1:8000/api/v1/autoru_parsed_ads/create'
+    data = pickle.dumps([df, datetime.now(), region])
+    response = requests.post(url=url, data=data, headers={'Content-Type': 'application/octet-stream'})
 
     return process_raw_ads(df)
 
@@ -128,8 +139,6 @@ def process_raw_ads(df: DataFrame) -> DataFrame:
 
     # Убираю больше ненужное 'empty' из комплектаций
     df['complectation'] = df['complectation'].str.replace('empty', '')
-
-    # TODO здесь отправлять в бд
 
     return df
 

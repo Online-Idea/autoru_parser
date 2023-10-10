@@ -92,7 +92,7 @@ for _, mark in marks.iterrows():
             cars = parse_avito(mark_url, driver, mark_name)
 
         if cars:
-            df = df._append(dealer_data(client, cars, final_file))
+            df = df._append(dealer_data(client, cars, final_file, region))
         else:  # Нет объявлений
             continue
 

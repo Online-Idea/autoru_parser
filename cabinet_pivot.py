@@ -3,6 +3,7 @@ import os
 import time
 
 from geo_changer import change_geo
+from parse_autoru import authorize_autoru
 from result_processing import data_work, format_work
 from random_wait import random_wait
 
@@ -97,18 +98,9 @@ def cabinet_pivot():
     wait = WebDriverWait(driver, 120)
     wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
-    # Авторизация
-    random_wait()
-    login_input = driver.find_element(By.NAME, "login")
-    login_input.send_keys(os.environ["login"])
-    login_input.send_keys(Keys.ENTER)
-
-    random_wait()
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='password']")))
-    password_input = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
-    password_input.send_keys(os.environ["password"])
-    sign_in_btn = driver.find_element(By.XPATH, "//span[text()='Войти']")
-    sign_in_btn.click()
+    login = os.environ["login"]
+    password = os.environ["password"]
+    authorize_autoru(driver, login, password)
 
     # Иду по клиентам
     wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "a[href='/clients/']")))

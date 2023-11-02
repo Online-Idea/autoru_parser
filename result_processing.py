@@ -1,8 +1,10 @@
+import logging
 import os
 from datetime import datetime
 
 import pandas as pd
 import requests
+from requests.exceptions import ConnectionError, JSONDecodeError
 import pickle
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, PatternFill, Font, Border, Side
@@ -103,9 +105,19 @@ def dealer_data(client: str, cars: list[dict], final_file: str, region: str) -> 
     with pd.ExcelWriter(final_file, engine='xlsxwriter') as writer:
         df.T.reset_index().T.to_excel(writer, sheet_name='Выдача', header=False, index=False)
 
-    url = 'http://127.0.0.1:8000/api/v1/autoru_parsed_ads/create'
+    url = 'http://89.108.81.17/api/v1/autoru_parsed_ads/create'
+    # url = 'http://localhost:8000/api/v1/autoru_parsed_ads/create'
     data = pickle.dumps([df, datetime.now(), region])
-    response = requests.post(url=url, data=data, headers={'Content-Type': 'application/octet-stream'})
+
+    try:
+        response = requests.post(url=url, data=data, headers={'Content-Type': 'application/octet-stream'})
+    except:
+        logging.info('Не удалось отправить данные парсера в базу')
+    # else:
+    #     try:
+    #         print(response.content)
+    #     except JSONDecodeError:
+    #         pass
 
     return process_raw_ads(df)
 

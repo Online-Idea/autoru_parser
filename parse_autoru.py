@@ -1,18 +1,47 @@
+import json
 import logging
+import os
 import re
 import time
+from typing import Union
 
 from bs4 import BeautifulSoup
 from bs4.element import PageElement, ResultSet
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException
+from selenium.webdriver import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
-from undetected_chromedriver import Chrome
+from undetected_chromedriver import Chrome, WebElement
 
 from geo_changer import change_geo
 from random_wait import random_wait
+
+
+def authorize_autoru(driver, login, password):
+    # Авторизация авто.ру
+    wait = WebDriverWait(driver, 120)
+    driver.get('https://auto.ru/')
+    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+    sign_in = driver.find_element(By.CLASS_NAME, "HeaderUserMenu__loginButton")
+    sign_in.click()
+
+    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+    random_wait()
+    login_input = driver.find_element(By.NAME, "login")
+    login_input.send_keys(login)
+    login_input.send_keys(Keys.ENTER)
+
+    random_wait()
+    wait = WebDriverWait(driver, 120)
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='password']")))
+    password_input = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
+    password_input.send_keys(password)
+    sign_in_btn = driver.find_element(By.XPATH, "//span[text()='Войти']")
+    sign_in_btn.click()
 
 
 def page_html(driver: Chrome) -> ResultSet:
@@ -201,11 +230,8 @@ def parse_autoru_model(cars_url: str, driver: Chrome) -> list[dict]:
 
     # Пагинация
     total_pages = ''
-    try:
-        next_page = driver.find_element(By.CLASS_NAME, "ListingPagination__next")
-    except NoSuchElementException:
-        next_page = False
-    else:
+    next_page = next_page_check(driver)
+    if next_page:
         total_pages = driver.find_elements(By.CLASS_NAME, 'ListingPagination__page')
         total_pages = list(total_pages)[-1].text
         current_page = 1
@@ -236,9 +262,178 @@ def parse_autoru_model(cars_url: str, driver: Chrome) -> list[dict]:
         for row in rows:
             cars.append(car_data(row, commercial=commercial))
 
-        next_page = driver.find_element(By.CLASS_NAME, "ListingPagination__next")
+        # Если какой-нибудь popup появляется
+        actions = ActionChains(driver)
+        actions.move_by_offset(0, 0).click().perform()
+
+        next_page = next_page_check(driver)
         next_page_class = next_page.get_attribute('class')
         if 'Button_disabled' in next_page_class:
             next_page = False
 
     return cars
+
+
+def next_page_check(driver: Chrome) -> Union[WebElement, bool]:
+    """
+    Проверяет есть ли элемент следующей страницы
+    @param driver: driver браузера
+    @return: элемент-кнопка следующей страницы либо False
+    """
+    try:
+        next_page = driver.find_element(By.CLASS_NAME, "ListingPagination__next")
+    except NoSuchElementException:
+        next_page = False
+    return next_page
+
+
+def collect_links(driver: Chrome, link: str) -> list:
+    """
+    Собирает ссылки на объявления
+    @param driver: driver браузера
+    @param link: ссылка на список объявлений
+    @return: список ссылок на объявления
+    """
+    # TODO сейчас делаю только для объявлений из кабинета. В дальнейшем сделать со страницы дилера и с выдачи
+    if 'cabinet.auto.ru' in link:
+        ad_link_class = 'OfferSnippetRoyalSpec__title'
+    elif 'diler' in link:
+        ad_link_class = 'ListingItemTitle__link'
+    else:
+        raise ValueError(f'Сбор по ссылке:\n{link}\nпока не поддерживается')
+
+    driver.get(link)
+
+    WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
+
+    next_page = next_page_check(driver)
+
+    links = []
+    # Первая страница
+    rows = page_html(driver)
+    if rows:
+        for row in rows:
+            ad_link = row.find('a', class_=ad_link_class)['href']
+            links.append(ad_link)
+
+    # Остальные страницы
+    while next_page:
+        next_page.click()
+        random_wait()
+        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CLASS_NAME, 'Listing__items')))
+
+        rows = page_html(driver)
+        for row in rows:
+            ad_link = row.find('a', class_=ad_link_class)['href']
+            links.append(ad_link)
+
+        next_page = next_page_check(driver)
+        next_page_class = next_page.get_attribute('class')
+        if 'Button_disabled' in next_page_class:
+            next_page = False
+
+    return links
+
+
+def parse_autoru_ad(driver: Chrome, ad_link: str):
+    """
+    Парсит одно объявление полностью
+    @param driver: driver браузера
+    @param ad_link: ссылка на объявление
+    @return: словарь с данными автомобиля
+    """
+    driver.get(ad_link)
+
+    html = driver.page_source
+    soup = BeautifulSoup(html, "html.parser")
+
+    car = soup.find(id='sale-data-attributes')['data-bem']
+    car = json.loads(car)['sale-data-attributes']
+
+    mark = car['markName']
+    model = car['modelName']
+    complectation = soup.find('span', class_='CardInfoGroupedRow__cellValue_complectationName').text
+    price = car['price']
+    # with_nds =  # Пока нет возможности
+
+    # Технические характеристики
+    # body_label = soup.find('div', {'class': 'CardInfoGroupedRow__cellTitle', 'text': 'Кузов'})
+    body_label = soup.select_one('div.CardInfoGroupedRow__cellTitle:-soup-contains("Кузов")')
+    body = body_label.find_next_sibling('a', 'CardInfoGroupedRow__cellValue').text
+    modification_label = soup.select_one('div.CardInfoGroupedRow__cellTitle:-soup-contains("Двигатель")')
+    modification = modification_label.find_next_sibling('div').text
+    if 'электро' in modification:
+        volume = ''
+    else:
+        volume = float(modification.split(' ')[0])
+    power = car['power']
+    transmission = car['transmission']
+    engine_type = car['engine-type']
+    drive_label = soup.select_one('div.CardInfoGroupedRow__cellTitle:-soup-contains("Привод")')
+    drive = drive_label.find_next_sibling('div', 'CardInfoGroupedRow__cellValue').text
+    year = car['year']
+
+    color_label = soup.select_one('div.CardInfoGroupedRow__cellTitle:-soup-contains("Цвет")')
+    color = color_label.find_next_sibling('a', 'CardInfoGroupedRow__cellValue').text
+
+    description = soup.find('div', class_='CardDescriptionHTML').text
+
+    vin_label = soup.select_one('div.CardInfoGroupedRow__cellTitle:-soup-contains("VIN")')
+    vin = vin_label.find_next_sibling('div', 'CardInfoGroupedRow__cellValue').text
+
+    # Скидки
+    def int_from_next_sibling(label_element):
+        element = label_element.find_next_sibling('div', 'CardDiscountList__itemValue').text
+        return int(re.sub(r'\D', '', element))
+    trade_in_label = soup.select_one('div.CardDiscountList__itemName:-soup-contains("В трейд-ин")')
+    credit_label = soup.select_one('div.CardDiscountList__itemName:-soup-contains("В кредит")')
+    insurance_label = soup.select_one('div.CardDiscountList__itemName:-soup-contains("С каско")')
+    max_discount_label = soup.select_one('div.CardDiscountList__itemName:-soup-contains("Максимальная")')
+    trade_in = int_from_next_sibling(trade_in_label)
+    credit = int_from_next_sibling(credit_label)
+    insurance = int_from_next_sibling(insurance_label)
+    max_discount = int_from_next_sibling(max_discount_label)
+
+    if 'new' in ad_link:
+        condition = 'новая'
+    elif 'used' in ad_link:
+        condition = 'с пробегом'
+    else:
+        condition = ''
+
+    run_label = soup.select_one('div.CardInfoRow__cell:-soup-contains("Пробег")')
+    run = int_from_next_sibling(run_label) if run_label else ''
+
+    tags_elements = soup.find_all('div', 'CardDescription__badgesItem')
+    tags = '|'.join([tag.text for tag in tags_elements])
+
+    # TODO ссылка на ютуб где-то внутри iframe, нужно через Selenium переключаться на него и уже его html давать bs4
+    # video_url = soup.find('link', rel='canonical')['href']
+    in_stock = soup.find('div', 'CardImageGallery__badges').text
+
+    return {
+        'mark': mark,
+        'model': model,
+        'complectation': complectation,
+        'price': price,
+        'body': body,
+        'volume': volume,
+        'power': power,
+        'transmission': transmission,
+        'engine_type': engine_type,
+        'drive': drive,
+        'year': year,
+        'color': color,
+        'description': description,
+        'vin': vin,
+        'trade_in': trade_in,
+        'credit': credit,
+        'insurance': insurance,
+        'max_discount': max_discount,
+        'condition': condition,
+        'run': run,
+        'tags': tags,
+        # 'video_url': video_url,
+        'in_stock': in_stock
+    }
+

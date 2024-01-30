@@ -10,7 +10,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from undetected_chromedriver import Chrome
 
-from random_wait import random_wait
+from utils.random_wait import random_wait
 
 
 RANDOM_MIN = 10
@@ -80,7 +80,7 @@ def car_data(car: PageElement, link: str) -> dict:
         price_with_discount = price.text
         price_no_discount = price.findChild("span").get('content')
         # Цена с НДС (пока по умолчанию False до тех пор, пока авито не введёт это поле)
-        with_nds = False
+        with_nds = 'нет'
 
         condition = car.select_one('[class*="style-newLabel"]').text
         try:
@@ -299,7 +299,7 @@ def parse_pages(driver):
         price = ad.select_one('p[data-marker="item-price"]').text
         price_with_discount = re.sub(r'\D', '', price)
         price_no_discount = price_with_discount
-        with_nds = True if 'с НДС' in price else False
+        with_nds = 'да' if 'с НДС' in price else 'нет'
 
         if 'моточас' in tech_params:
             condition = tech_params.split(',')[0]

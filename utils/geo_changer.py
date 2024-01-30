@@ -1,9 +1,7 @@
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from undetected_chromedriver import Chrome
 
-from random_wait import random_wait
+from .random_wait import random_wait
 
 
 def change_geo(driver: Chrome, region: str) -> None:

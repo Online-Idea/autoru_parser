@@ -56,7 +56,7 @@ def final_file_path(client: str, site: str) -> str:
     """
     today = datetime.now().strftime('%d.%m.%Y')
     file_name = f'Сравнение {client} ({site}) {today}.xlsx'
-    return os.path.join('results', file_name)
+    return os.path.join(os.getcwd(), 'results', file_name)
 
 
 def dealer_data(client: str, cars: list[dict], final_file: str, region: str) -> DataFrame:
@@ -105,7 +105,8 @@ def dealer_data(client: str, cars: list[dict], final_file: str, region: str) -> 
     with pd.ExcelWriter(final_file, engine='xlsxwriter') as writer:
         df.T.reset_index().T.to_excel(writer, sheet_name='Выдача', header=False, index=False)
 
-    url = 'http://89.108.81.17/api/v1/autoru_parsed_ads/create'
+    # Отправляю в базу
+    url = 'http://stats.onllline.ru/api/v1/autoru_parsed_ads/create'
     # url = 'http://localhost:8000/api/v1/autoru_parsed_ads/create'
     data = pickle.dumps([df, datetime.now(), region])
 

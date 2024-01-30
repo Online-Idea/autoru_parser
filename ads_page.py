@@ -12,13 +12,12 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
-from webdriver_manager.chrome import ChromeDriverManager
 
-from email_sender import send_email_to_client
-from parse_autoru import parse_autoru_mark
-from parse_avito import parse_avito
-from random_wait import random_wait
-from result_processing import format_work, dealer_data, dealers_pandas, final_file_path
+from utils.email_sender import send_email_to_client
+from utils.parse_autoru import parse_autoru_mark
+from utils.parse_avito import parse_avito
+from utils.random_wait import random_wait
+from utils.result_processing import format_work, dealer_data, dealers_pandas, final_file_path
 
 start = time.perf_counter()
 
@@ -28,7 +27,6 @@ logging.basicConfig(
     datefmt="%Y.%m.%d %H:%M:%S",
 )
 
-# service = Service(ChromeDriverManager(version="113.0.5672.63").install())
 service = Service()
 options = uc.ChromeOptions()
 # Отключаю окно сохранения пароля

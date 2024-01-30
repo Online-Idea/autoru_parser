@@ -1,9 +1,7 @@
 import datetime
 import logging
-import sys
 import time
 
-import numpy as np
 import pandas as pd
 from selenium.webdriver.chrome.service import Service
 import undetected_chromedriver as uc
@@ -12,8 +10,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
-from parse_autoru import authorize_autoru, collect_links, parse_autoru_ad
-from random_wait import random_wait
+from utils.parse_autoru import authorize_autoru, collect_links, parse_autoru_ad
+from utils.random_wait import random_wait
 
 # Скрипт для парсинга внутри объявлений
 

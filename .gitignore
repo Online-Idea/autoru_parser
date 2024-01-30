@@ -1,3 +1,9 @@
 # Project exclude paths
 /venv/
 /results/
+utils/after_pandas.xlsx
+*.bat
+*.sh
+out.log
+search_masks.txt
+start.xlsx

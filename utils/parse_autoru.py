@@ -1,13 +1,11 @@
 import json
 import logging
-import os
 import re
-import time
 from typing import Union
 
 from bs4 import BeautifulSoup
 from bs4.element import PageElement, ResultSet
-from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
@@ -15,8 +13,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 from undetected_chromedriver import Chrome, WebElement
 
-from geo_changer import change_geo
-from random_wait import random_wait
+from utils.geo_changer import change_geo
+from utils.random_wait import random_wait
 
 
 def authorize_autoru(driver, login, password):
@@ -36,7 +34,6 @@ def authorize_autoru(driver, login, password):
     login_input.send_keys(Keys.ENTER)
 
     random_wait()
-    wait = WebDriverWait(driver, 120)
     wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='password']")))
     password_input = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
     password_input.send_keys(password)
@@ -44,7 +41,7 @@ def authorize_autoru(driver, login, password):
     sign_in_btn.click()
 
 
-def page_html(driver: Chrome) -> ResultSet:
+def page_html(driver: Chrome) -> Union[ResultSet, None]:
     """
     Находит все элементы автомобилей
     @param driver: driver браузера
@@ -66,17 +63,21 @@ def car_data(car: PageElement, commercial: bool = False) -> dict:
     @param commercial: для коммерческих автомобилей
     @return: словарь с данными автомобиля
     """
+    link = car.find('a', class_='ListingItemTitle__link')['href']
+    if 'new' in link:  # Комплектация только у новых
+        complectation = car.select_one('div.ListingItem__summary > div > div:nth-child(2) > div:nth-child(2)').text
+    else:
+        complectation = ''
+
     # Инфо об автомобиле
     mark_model = car.find('a', class_='ListingItemTitle__link').text
     if not commercial:
-        complectation = car.select_one('div.ListingItem__summary > div > div:nth-child(2) > div:nth-child(2)').text
         engine = car.select_one('div.ListingItem__summary > div > div:nth-child(1) > div:nth-child(1)').text
         transmission = car.select_one('div.ListingItem__summary > div > div:nth-child(1) > div:nth-child(2)').text
         drive = car.select_one('div.ListingItem__summary > div > div:nth-child(2) > div:nth-child(1)').text
         body = car.select_one('div.ListingItem__summary > div > div:nth-child(1) > div:nth-child(3)').text
         modification = '/'.join([body, engine, transmission, drive]).replace('/', ' / ').lower()
     else:
-        complectation = ''
         tech_specs = car.find('div', class_='ListingItemTechSummaryDesktop__column')
         cells = tech_specs.find_all('div', class_='ListingItemTechSummaryDesktop__cell')
         modification = ' / '.join([cell.text for cell in cells])
@@ -84,7 +85,6 @@ def car_data(car: PageElement, commercial: bool = False) -> dict:
     year = car.find('div', class_='ListingItem__year').text
 
     # Цены
-    # prices = car.find_all('div', class_='ListingItemPrice__content')
     prices = car.find_all('div', class_='ListingItem__price')
     price_with_discount = prices[0].text
     price_no_discount = prices[1].text if len(prices) > 1 else prices[0].text
@@ -92,13 +92,12 @@ def car_data(car: PageElement, commercial: bool = False) -> dict:
     try:
         car.find('div', class_='ListingItem__withNds').text
     except NoSuchElementException:
-        with_nds = False
+        with_nds = 'нет'
     except AttributeError:
-        with_nds = False
+        with_nds = 'нет'
     else:
-        with_nds = True
+        with_nds = 'да'
 
-    link = car.find('a', class_='ListingItemTitle__link')['href']
     condition = car.find('div', class_='ListingItem__kmAge').text
     # Для авто с пробегом
     condition = int(re.findall(r'\d+', condition)[0]) if 'км' in condition else condition
@@ -117,7 +116,6 @@ def car_data(car: PageElement, commercial: bool = False) -> dict:
 
     # Услуги
     try:
-        # services = str(car.find('div', class_='ListingItem__services'))
         services = str(car.find('div', class_='ListingItem__placeBlock'))
         services_list = []
         if any(service in services for service in ['IconSvg_vas-premium', 'IconSvg_vas-icon-top-small', 'IconSvg_name_SvgVasIconTopSmall']):
@@ -177,7 +175,7 @@ def parse_autoru_mark(cars_url: str, driver: Chrome, region: str = None) -> list
 
     driver.get(cars_url)
 
-    WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
+    WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
 
     # Клик по 0, 0 на случай если авто.ру показывает pop up
     actions = ActionChains(driver)
@@ -197,7 +195,7 @@ def parse_autoru_mark(cars_url: str, driver: Chrome, region: str = None) -> list
         pass
     models_elements = driver.find_elements(By.CLASS_NAME, 'ListingPopularMMM__itemName')
     models_links = [e.get_attribute('href') for e in models_elements]
-    models_links = [f'{link}?output_type=list' for link in models_links]
+    models_links = [f'{link}?output_type=list' if '?' not in link else f'{link}&output_type=list' for link in models_links]
 
     if models_links:  # По моделям
         for link in models_links:
@@ -252,11 +250,17 @@ def parse_autoru_model(cars_url: str, driver: Chrome) -> list[dict]:
 
     # Остальные страницы
     while next_page:
-        next_page.click()
+        try:
+            next_page.click()
+        except:  # Пробую на любой ошибке при переходе на другую страницу просто обновлять страницу и пробовать снова
+            driver.refresh()
+            next_page = next_page_check(driver)
+            next_page.click()
+
         current_page += 1
         logging.info(f'Страница {current_page:3} из {total_pages:3}')
         random_wait()
-        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CLASS_NAME, 'ListingCars_outputType_list')))
+        WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CLASS_NAME, 'ListingCars_outputType_list')))
 
         rows = page_html(driver)
         for row in rows:
@@ -304,7 +308,7 @@ def collect_links(driver: Chrome, link: str) -> list:
 
     driver.get(link)
 
-    WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
+    WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
 
     next_page = next_page_check(driver)
 
@@ -320,7 +324,7 @@ def collect_links(driver: Chrome, link: str) -> list:
     while next_page:
         next_page.click()
         random_wait()
-        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CLASS_NAME, 'Listing__items')))
+        WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CLASS_NAME, 'Listing__items')))
 
         rows = page_html(driver)
         for row in rows:
@@ -357,7 +361,6 @@ def parse_autoru_ad(driver: Chrome, ad_link: str):
     # with_nds =  # Пока нет возможности
 
     # Технические характеристики
-    # body_label = soup.find('div', {'class': 'CardInfoGroupedRow__cellTitle', 'text': 'Кузов'})
     body_label = soup.select_one('div.CardInfoGroupedRow__cellTitle:-soup-contains("Кузов")')
     body = body_label.find_next_sibling('a', 'CardInfoGroupedRow__cellValue').text
     modification_label = soup.select_one('div.CardInfoGroupedRow__cellTitle:-soup-contains("Двигатель")')

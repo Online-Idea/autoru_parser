@@ -17,19 +17,27 @@ from utils.geo_changer import change_geo
 from utils.random_wait import random_wait
 
 
-def authorize_autoru(driver, login, password):
-    # Авторизация авто.ру
+def authorize_autoru(driver: Chrome, login: str, password: str, business: bool):
+    """
+    Авторизация на авто.ру
+    @param driver: driver браузера
+    @param login: логин
+    @param password: пароль
+    @param business: если нужно ходить по cabinet.auto.ru или agency.auto.ru то авторизация чуть другая и нужно
+                     передавать business=True
+    """
     wait = WebDriverWait(driver, 120)
-    driver.get('https://auto.ru/')
-    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-
-    sign_in = driver.find_element(By.CLASS_NAME, "HeaderUserMenu__loginButton")
-    sign_in.click()
-
-    wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+    if not business:
+        driver.get('https://auth.auto.ru/login/?r=https%3A%2F%2Fauto.ru%2F')
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        login_input = 'login'
+    else:
+        driver.get('https://cabinet.auto.ru')
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        login_input = 'email'
 
     random_wait()
-    login_input = driver.find_element(By.NAME, "login")
+    login_input = driver.find_element(By.NAME, login_input)
     login_input.send_keys(login)
     login_input.send_keys(Keys.ENTER)
 
@@ -37,8 +45,8 @@ def authorize_autoru(driver, login, password):
     wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='password']")))
     password_input = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
     password_input.send_keys(password)
-    sign_in_btn = driver.find_element(By.XPATH, "//span[text()='Войти']")
-    sign_in_btn.click()
+    password_input.send_keys(Keys.ENTER)
+    random_wait()
 
 
 def page_html(driver: Chrome) -> Union[ResultSet, None]:
@@ -49,6 +57,10 @@ def page_html(driver: Chrome) -> Union[ResultSet, None]:
     """
     html = driver.page_source
     soup = BeautifulSoup(html, "html.parser")
+
+    if 'cabinet' in driver.current_url or 'agency' in driver.current_url:
+        return soup.find_all("div", class_="Listing__item")
+
     current_region = soup.find("div", class_="ListingCars_outputType_list")
     try:
         return current_region.find_all("div", class_="ListingItem")
@@ -299,7 +311,7 @@ def collect_links(driver: Chrome, link: str) -> list:
     @return: список ссылок на объявления
     """
     # TODO сейчас делаю только для объявлений из кабинета. В дальнейшем сделать со страницы дилера и с выдачи
-    if 'cabinet.auto.ru' in link:
+    if 'cabinet.auto.ru' in link or 'agency.auto.ru' in link:
         ad_link_class = 'OfferSnippetRoyalSpec__title'
     elif 'diler' in link:
         ad_link_class = 'ListingItemTitle__link'
@@ -308,7 +320,13 @@ def collect_links(driver: Chrome, link: str) -> list:
 
     driver.get(link)
 
-    WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
+    random_wait()
+    WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+    # WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
+
+    # Если какой-нибудь popup появляется
+    actions = ActionChains(driver)
+    actions.move_by_offset(0, 0).click().perform()
 
     next_page = next_page_check(driver)
 
@@ -392,10 +410,10 @@ def parse_autoru_ad(driver: Chrome, ad_link: str):
     credit_label = soup.select_one('div.CardDiscountList__itemName:-soup-contains("В кредит")')
     insurance_label = soup.select_one('div.CardDiscountList__itemName:-soup-contains("С каско")')
     max_discount_label = soup.select_one('div.CardDiscountList__itemName:-soup-contains("Максимальная")')
-    trade_in = int_from_next_sibling(trade_in_label)
-    credit = int_from_next_sibling(credit_label)
-    insurance = int_from_next_sibling(insurance_label)
-    max_discount = int_from_next_sibling(max_discount_label)
+    trade_in = int_from_next_sibling(trade_in_label) if trade_in_label else None
+    credit = int_from_next_sibling(credit_label) if credit_label else None
+    insurance = int_from_next_sibling(insurance_label) if insurance_label else None
+    max_discount = int_from_next_sibling(max_discount_label) if max_discount_label else None
 
     if 'new' in ad_link:
         condition = 'новая'

@@ -31,10 +31,11 @@ prefs = {"credentials_enable_service": False, "profile.password_manager_enabled"
 options.add_experimental_option("prefs", prefs)
 
 driver = webdriver.Chrome(options=options, service=service)
+driver.get('https://auto.ru')
 
 wait = WebDriverWait(driver, 120)
-wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-# wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
+# wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
 
 tasks = pd.read_excel('start.xlsx', sheet_name='Внутри объявлений')
 
@@ -51,7 +52,8 @@ for _, task in tasks.iterrows():
     logging.info(f'{name}\n{links_start}')
 
     if not pd.isnull(login) and not pd.isnull(password):
-        authorize_autoru(driver, login, password)
+        business = True if 'cabinet' in links_start or 'agency' in links_start else False
+        authorize_autoru(driver, login, password, business)
 
     links_start = links_start.split(', ')
     ads_links = []
@@ -62,7 +64,9 @@ for _, task in tasks.iterrows():
     logging.info(ads_links)
 
     cars = []
-    for ad_link in ads_links:
+    len_ads_links = len(ads_links)
+    for i, ad_link in enumerate(ads_links):
+        logging.info(f'Объявление {i + 1:3} из {len_ads_links} {ad_link}')
         cars.append(parse_autoru_ad(driver, ad_link))
         random_wait()
 

@@ -19,6 +19,8 @@ from utils.parse_avito import parse_avito
 from utils.random_wait import random_wait
 from utils.result_processing import format_work, dealer_data, dealers_pandas, final_file_path
 
+# import twocaptcha
+
 start = time.perf_counter()
 
 logging.basicConfig(

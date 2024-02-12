@@ -7,12 +7,30 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 
+def send_email(to, subject, message):
+    sender = os.environ['EMAIL_LOGIN']
+    password = os.environ['EMAIL_PASSWORD']
+
+    # Сообщение
+    msg = MIMEMultipart()
+    msg['From'] = sender
+    msg['To'] = to
+    msg['Subject'] = subject
+    msg.attach(MIMEText(message, 'plain'))
+
+    # Отправляю письмо
+    with smtplib.SMTP_SSL('smtp.yandex.ru', 465) as smtp:
+        smtp.login(sender, password)
+        smtp.sendmail(sender, to, msg.as_string())
+
+
 def send_email_to_client(client_email: str, file_paths: list) -> None:
     """
     Отправляет письмо с файлом
     @param client_email: почты получателей, разделены запятой
     @param file_paths: путь к файлам
     """
+    # TODO рефакторинг
     # Инфо письма
     sender = os.environ['email_login']
     password = os.environ['email_password']

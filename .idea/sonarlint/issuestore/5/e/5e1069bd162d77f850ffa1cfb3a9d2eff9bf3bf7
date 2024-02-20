@@ -1,0 +1,22 @@
+
+wpython:S1192"YDefine a constant instead of duplicating this literal 'ĞšĞ¾Ğ¼Ğ¿Ğ»ĞµĞºÑ‚Ğ°Ñ†Ğ¸Ñ' 5 times.(ÜÿÃ<8¾ÓÀõ†1
+wpython:S1192"YDefine a constant instead of duplicating this literal 'ĞœĞ°Ñ€ĞºĞ°, Ğ¼Ğ¾Ğ´ĞµĞ»ÑŒ' 6 times.(à¼ÔE8¾ÓÀõ†1
+lpython:S1192j"MDefine a constant instead of duplicating this literal 'Ğ’Ñ‹Ğ´Ğ°Ñ‡Ğ°' 6 times.(˜ÍôÖ8Àéí¹1
+{python:S1192"WDefine a constant instead of duplicating this literal 'ĞœĞ¾Ğ´Ğ¸Ñ„Ğ¸ĞºĞ°Ñ†Ğ¸Ñ' 5 times.(ÀŠÓƒÿÿÿÿÿ8¿ÓÀõ†1
+xpython:S1192"TDefine a constant instead of duplicating this literal 'Ğ˜Ğ¼Ñ Ğ´Ğ¸Ğ»ĞµÑ€Ğ°' 3 times.(³¥¬‚şÿÿÿÿ8¿ÓÀõ†1
+python:S1192ã"\Define a constant instead of duplicating this literal 'Ğ’Ñ‚Ğ¾Ñ€Ğ¾Ğ¹ Ğ²Ğ°Ñ€Ğ¸Ğ°Ğ½Ñ‚' 3 times.(ÖáİÇúÿÿÿÿ8Áéí¹1
+qpython:S1192"RDefine a constant instead of duplicating this literal 'Ğ’ Ğ½Ğ°Ğ»Ğ¸Ñ‡Ğ¸Ğ¸' 4 times.(¢Áš¹8Áéí¹1
+qpython:S1192"MDefine a constant instead of duplicating this literal 'Ğ¡ÑÑ‹Ğ»ĞºĞ°' 3 times.(üÖæÑùÿÿÿÿ8¿ÓÀõ†1
+vpython:S1192"RDefine a constant instead of duplicating this literal 'ĞŸĞ¾Ğ´ Ğ·Ğ°ĞºĞ°Ğ·' 3 times.(¤–†ûÿÿÿÿ8¿ÓÀõ†1
+Rpython:S1172>".Remove the unused function parameter "client".(×¢Õöûÿÿÿÿ8Âéí¹1
+Ppython:S1481q",Remove the unused local variable "response".(ë¤€¤úÿÿÿÿ8Âéí¹1
+=python:S125m"Remove this commented out code.(øå’Š8Ãéí¹1
+[python:S5754r"<Specify an exception class to catch or reraise the exception(ˆÊÉ·8¿ÓÀõ†1
+Tpython:S6735Š"/Specify the "validate" parameter of this merge.(¶ì­åùÿÿÿÿ8Äéí¹1
+Tpython:S6735"/Specify the "validate" parameter of this merge.(¶ì­åùÿÿÿÿ8Äéí¹1
+Tpython:S6735ª"/Specify the "validate" parameter of this merge.(­ò”øÿÿÿÿ8Åéí¹1
+_python:S6735÷":Specify the "how" and "validate" parameters of this merge.(­ò”øÿÿÿÿ8Åéí¹1
+=python:S3626µ"Remove this redundant return.(ÙãŞŸ8Åéí¹1
+ypython:S3776£"TRefactor this function to reduce its Cognitive Complexity from 92 to the 15 allowed.( ï”êûÿÿÿÿ8Çéí¹1
+\python:S5754‡"<Specify an exception class to catch or reraise the exception(ˆÊÉ·8Çéí¹1
+>python:S125’"Remove this commented out code.(­™Ê8Çéí¹1

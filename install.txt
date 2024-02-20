@@ -1,0 +1,6 @@
+Если авито долго грузится то добавь в файл:
+C:\Windows\System32\drivers\etc\hosts
+
+Вот эти строки, в конец файла:
+127.0.0.1 www.googleadservices.com
+127.0.0.1 cm.g.doubleclick.net

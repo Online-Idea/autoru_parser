@@ -1,0 +1,7 @@
+
+kpython:S1192"LDefine a constant instead of duplicating this literal "html.parser" 3 times.(÷É‹¡8÷ëí¹1
+spython:S3776!"TRefactor this function to reduce its Cognitive Complexity from 16 to the 15 allowed.(¸ˆ–£8øëí¹1
+[python:S5754y"<Specify an exception class to catch or reraise the exception(ˆÊÉ·8øëí¹1
+Spython:S1481±".Remove the unused local variable "cars_links".(Ì­Øªúÿÿÿÿ8øëí¹1
+spython:S3776}"TRefactor this function to reduce its Cognitive Complexity from 29 to the 15 allowed.(ôÓÏê8ùÍÖó„1
+tpython:S3776‹"TRefactor this function to reduce its Cognitive Complexity from 21 to the 15 allowed.(ÛÍÀó8úëí¹1

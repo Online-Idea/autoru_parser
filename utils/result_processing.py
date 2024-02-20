@@ -119,7 +119,7 @@ def dealer_data(client: str, cars: list[dict], final_file: str, region: str) -> 
     #         print(response.content)
     #     except JSONDecodeError:
     #         pass
-
+    #
     return process_raw_ads(df)
 
 

@@ -191,7 +191,9 @@ def parse_autoru_mark(cars_url: str, driver: Chrome, region: str = None) -> list
 
     if is_captcha(driver):
         logging.info('CAPTCHA появилась')
-        send_email('evgen0nlin3@gmail.com', 'CAPTCHA появилась', 'Captcha')
+        # send_email('evgen0nlin3@gmail.com', 'CAPTCHA появилась', 'Captcha')
+        random_wait()
+        driver.find_element(By.CSS_SELECTOR, '.CheckboxCaptcha-Button').click()
 
     WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
 

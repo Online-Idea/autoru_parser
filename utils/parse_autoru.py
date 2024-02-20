@@ -13,7 +13,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 from undetected_chromedriver import Chrome, WebElement
 
+from utils.captcha import check_captcha
+
 from utils.captcha import is_captcha
+
 from utils.email_sender import send_email
 from utils.geo_changer import change_geo
 from utils.random_wait import random_wait
@@ -132,9 +135,11 @@ def car_data(car: PageElement, commercial: bool = False) -> dict:
     try:
         services = str(car.find('div', class_='ListingItem__placeBlock'))
         services_list = []
-        if any(service in services for service in ['IconSvg_vas-premium', 'IconSvg_vas-icon-top-small', 'IconSvg_name_SvgVasIconTopSmall']):
+        if any(service in services for service in
+               ['IconSvg_vas-premium', 'IconSvg_vas-icon-top-small', 'IconSvg_name_SvgVasIconTopSmall']):
             services_list.append('премиум')
-        if any(service in services for service in ['IconSvg_vas-icon-fresh', 'IconSvg_name_SvgVasIconFresh', 'MetroListPlace__content ']):
+        if any(service in services for service in
+               ['IconSvg_vas-icon-fresh', 'IconSvg_name_SvgVasIconFresh', 'MetroListPlace__content ']):
             services_list.append('поднятие в поиске')
         services = ' | '.join(services_list)
     except NoSuchElementException:
@@ -188,6 +193,7 @@ def parse_autoru_mark(cars_url: str, driver: Chrome, region: str = None) -> list
     cars = []
 
     driver.get(cars_url)
+    check_captcha(driver)
 
     if is_captcha(driver):
         logging.info('CAPTCHA появилась')
@@ -215,7 +221,8 @@ def parse_autoru_mark(cars_url: str, driver: Chrome, region: str = None) -> list
         pass
     models_elements = driver.find_elements(By.CLASS_NAME, 'ListingPopularMMM__itemName')
     models_links = [e.get_attribute('href') for e in models_elements]
-    models_links = [f'{link}?output_type=list' if '?' not in link else f'{link}&output_type=list' for link in models_links]
+    models_links = [f'{link}?output_type=list' if '?' not in link else f'{link}&output_type=list' for link in
+                    models_links]
 
     if models_links:  # По моделям
         for link in models_links:
@@ -280,7 +287,8 @@ def parse_autoru_model(cars_url: str, driver: Chrome) -> list[dict]:
         current_page += 1
         logging.info(f'Страница {current_page:3} из {total_pages:3}')
         random_wait()
-        WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CLASS_NAME, 'ListingCars_outputType_list')))
+        WebDriverWait(driver, 86400).until(
+            EC.presence_of_element_located((By.CLASS_NAME, 'ListingCars_outputType_list')))
 
         rows = page_html(driver)
         for row in rows:
@@ -414,6 +422,7 @@ def parse_autoru_ad(driver: Chrome, ad_link: str):
     def int_from_next_sibling(label_element):
         element = label_element.find_next_sibling('div', 'CardDiscountList__itemValue').text
         return int(re.sub(r'\D', '', element))
+
     trade_in_label = soup.select_one('div.CardDiscountList__itemName:-soup-contains("В трейд-ин")')
     credit_label = soup.select_one('div.CardDiscountList__itemName:-soup-contains("В кредит")')
     insurance_label = soup.select_one('div.CardDiscountList__itemName:-soup-contains("С каско")')
@@ -465,4 +474,3 @@ def parse_autoru_ad(driver: Chrome, ad_link: str):
         # 'video_url': video_url,
         'in_stock': in_stock
     }
-

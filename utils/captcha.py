@@ -18,6 +18,8 @@ import requests
 from PIL import Image
 
 
+
+
 def is_captcha(driver: WebDriver) -> bool:
     """
     Проверяет появилась ли капча. Смотрит по тегу title

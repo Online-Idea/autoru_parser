@@ -14,6 +14,9 @@ from selenium.webdriver.support.wait import WebDriverWait
 from undetected_chromedriver import Chrome, WebElement
 
 from utils.captcha import check_captcha
+
+from utils.captcha import is_captcha
+
 from utils.email_sender import send_email
 from utils.geo_changer import change_geo
 from utils.random_wait import random_wait
@@ -191,6 +194,10 @@ def parse_autoru_mark(cars_url: str, driver: Chrome, region: str = None) -> list
 
     driver.get(cars_url)
     check_captcha(driver)
+
+    if is_captcha(driver):
+        logging.info('CAPTCHA появилась')
+        send_email('evgen0nlin3@gmail.com', 'CAPTCHA появилась', 'Captcha')
 
     WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
 

@@ -7,3 +7,7 @@ utils/after_pandas.xlsx
 out.log
 search_masks.txt
 start.xlsx
+*.env
+*.log
+*.png
+*__pycache__/

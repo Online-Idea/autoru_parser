@@ -3,6 +3,8 @@
 /results/
 utils/after_pandas.xlsx
 *.bat
+run_auto.bat
+run_once.bat
 *.sh
 out.log
 search_masks.txt

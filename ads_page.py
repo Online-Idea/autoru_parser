@@ -3,16 +3,13 @@ import sys
 import time
 
 import pandas as pd
-from pandas import DataFrame
-import undetected_chromedriver as uc
 from openpyxl.reader.excel import load_workbook
 from openpyxl.workbook import Workbook
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.wait import WebDriverWait
+from pandas import DataFrame
 
+from utils.auth_autoru import check_auth_page
+from utils.browser_driver import browser_driver
+from utils.captcha import check_captcha
 from utils.email_sender import send_email_to_client
 from utils.parse_autoru import parse_autoru_mark
 from utils.parse_avito import parse_avito
@@ -29,18 +26,7 @@ logging.basicConfig(
     datefmt="%Y.%m.%d %H:%M:%S",
 )
 
-service = Service()
-options = uc.ChromeOptions()
-# Отключаю окно сохранения пароля
-prefs = {"credentials_enable_service": False, "profile.password_manager_enabled": False}
-options.add_experimental_option("prefs", prefs)
-
-# driver = uc.Chrome(driver_executable_path=ChromeDriverManager().install(), options=options)
-driver = webdriver.Chrome(options=options, service=service)
-# driver = uc.Chrome(service=service, options=options)
-
-wait = WebDriverWait(driver, 120)
-wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+driver = browser_driver()
 
 if len(sys.argv) > 1 and sys.argv[1] == '--by_request':  # Одинарный запуск
     marks = pd.read_excel('start.xlsx', sheet_name='По марке (по запросу)')
@@ -96,8 +82,12 @@ for _, mark in marks.iterrows():
         else:  # Нет объявлений
             continue
 
+        # Обрабатываю собранные данные
         file_after_pandas = dealers_pandas(df, autoru_name)
         random_wait()
+        if site in ['авто.ру', 'автору']:
+            check_captcha(driver)
+            check_auth_page(driver)
 
     # Иначе берём уже спарсенные объявления
     else:
@@ -113,8 +103,10 @@ for _, mark in marks.iterrows():
 
         file_after_pandas = dealers_pandas(previous_df, autoru_name)
 
+    # Форматирую в читабельный вид
     format_work(file_after_pandas, autoru_name, final_file)
-    
+
+    # Отправляю письмо с готовыми сравнительными
     if str(client_email) != 'nan':
         emails_files[client_email].append(final_file)
 

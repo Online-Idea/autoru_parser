@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 import os
 import smtplib
@@ -32,10 +33,9 @@ def send_email_to_client(client_email: str, file_paths: list) -> None:
     """
     # TODO рефакторинг
     # Инфо письма
-    sender = os.environ['email_login']
-    password = os.environ['email_password']
+    sender = os.environ['EMAIL_LOGIN']
+    password = os.environ['EMAIL_PASSWORD']
     recipients = [client.strip() for client in client_email.split(',')]
-    recipients.append('ruslansponline@gmail.com')  # Почта Руслана
     date_str = date.today().strftime('%d.%m.%Y')
     if len(file_paths) > 1:
         subject = f'Сравнительные таблицы {date_str}'
@@ -79,3 +79,5 @@ def send_email_to_client(client_email: str, file_paths: list) -> None:
     with smtplib.SMTP_SSL('smtp.yandex.ru', 465) as smtp:
         smtp.login(sender, password)
         smtp.sendmail(sender, recipients, msg.as_string())
+
+    logging.info('Письмо отправлено')

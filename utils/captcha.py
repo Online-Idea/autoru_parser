@@ -18,8 +18,6 @@ import requests
 from PIL import Image
 
 
-
-
 def is_captcha(driver: WebDriver) -> bool:
     """
     Проверяет появилась ли капча. Смотрит по тегу title
@@ -39,7 +37,7 @@ def check_captcha(driver: WebDriver) -> None:
         sleep(1)
         result = None  # Инициализация переменной результата
         if "Нажмите, чтобы продолжить" in driver.page_source:
-            logging.debug('Simple CAPTCHA!')
+            logging.info('Simple CAPTCHA!')
             result = click_captcha(driver)  # Вызов функции click_captcha для решения простой капчи
         elif "Нажмите в таком порядке" in driver.page_source:
             logging.info('Coordinates CAPTCHA!')
@@ -52,6 +50,9 @@ def check_captcha(driver: WebDriver) -> None:
         if is_captcha(driver) and (result is None or not result['status success']):
             logging.info('Обновление страницы с CAPTCHA')
             driver.refresh()
+
+    # TODO убери коммент если падает на экране авторизации
+    # WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
 
 
 def load_image(url: str) -> Union[Image.Image, Dict[str, bool]]:
@@ -172,7 +173,7 @@ def solve_captcha(driver: WebDriver) -> Union[Dict[str, bool], None]:
 
 def click_captcha(driver: WebDriver) -> Dict[str, bool]:
     """
-    Прожимает простю капчу
+    Прожимает простую капчу
     @param driver:
     @return:
     """
@@ -183,6 +184,9 @@ def click_captcha(driver: WebDriver) -> Dict[str, bool]:
         checkbox = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'js-button')))
         checkbox.click()
         logging.debug(f'Captcha "simple click" successfully!')
+        # Жду загрузки страницы после CAPTCHA
+        # WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
+        check_captcha(driver)
         return {'status success': True}
     except Exception as e:
         logging.error(f"Error: {e}")

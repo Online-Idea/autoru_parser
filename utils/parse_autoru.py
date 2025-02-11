@@ -1,23 +1,26 @@
 import json
 import logging
 import re
+import time
 from typing import Union
 
 from bs4 import BeautifulSoup
 from bs4.element import PageElement, ResultSet
-from selenium.common.exceptions import NoSuchElementException
-from selenium.webdriver import Keys
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException
+from selenium.webdriver import Keys, DesiredCapabilities
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 from undetected_chromedriver import Chrome, WebElement
 
+from utils.auth_autoru import check_auth_page
 from utils.captcha import check_captcha
 
 from utils.captcha import is_captcha
 
 from utils.email_sender import send_email
+from utils.functions import close_popup, extract_text_with_newlines
 from utils.geo_changer import change_geo
 from utils.random_wait import random_wait
 
@@ -195,22 +198,14 @@ def parse_autoru_mark(cars_url: str, driver: Chrome, region: str = None) -> list
     driver.get(cars_url)
     check_captcha(driver)
 
-    if is_captcha(driver):
-        logging.info('CAPTCHA появилась')
-        # send_email('evgen0nlin3@gmail.com', 'CAPTCHA появилась', 'Captcha')
-        random_wait()
-        driver.find_element(By.CSS_SELECTOR, '.CheckboxCaptcha-Button').click()
-
-    WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
-
-    # Клик по 0, 0 на случай если авто.ру показывает pop up
-    actions = ActionChains(driver)
-    actions.move_by_offset(0, 0).click().perform()
+    # Если какой-нибудь popup появляется
+    close_popup(driver)
 
     # Меняю регион
-    if region:
-        change_geo(driver, region)
-        WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
+    # TODO возможно надо обновить
+    # if region:
+    #     change_geo(driver, region)
+    #     WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
 
     # Собираю по каждой модели отдельно
     try:
@@ -219,16 +214,33 @@ def parse_autoru_mark(cars_url: str, driver: Chrome, region: str = None) -> list
             all_models.click()
     except NoSuchElementException:
         pass
+    random_wait()
+    check_captcha(driver)
+    check_auth_page(driver)
     models_elements = driver.find_elements(By.CLASS_NAME, 'ListingPopularMMM__itemName')
     models_links = [e.get_attribute('href') for e in models_elements]
-    models_links = [f'{link}?output_type=list' if '?' not in link else f'{link}&output_type=list' for link in
-                    models_links]
+    # models_links = [f'{link}?output_type=list' if '?' not in link else f'{link}&output_type=list' for link in
+    #                 models_links]
+    for i in range(len(models_links)):
+        # Удаляю текущие параметры с ссылок на Модели
+        models_links[i] = models_links[i].split('?')[0]
+        # Добавляю к ссылкам на модели параметры из начальной ссылки
+        if '?' in cars_url:
+            models_links[i] += cars_url[cars_url.find('?'):]
+        # Вид выдачи как список
+        if 'output_type' not in models_links[i]:
+            if '?' not in models_links[i]:
+                models_links[i] = f'{models_links[i]}?output_type=list'
+            else:
+                models_links[i] = f'{models_links[i]}&output_type=list'
 
     if models_links:  # По моделям
         for link in models_links:
             logging.info(link)
             cars.extend(parse_autoru_model(link, driver))
             random_wait()
+            check_captcha(driver)
+            check_auth_page(driver)
     else:  # Если нет моделей
         cars.extend(parse_autoru_model(cars_url, driver))
 
@@ -246,6 +258,9 @@ def parse_autoru_model(cars_url: str, driver: Chrome) -> list[dict]:
 
     driver.get(cars_url)
 
+    check_captcha(driver)
+    check_auth_page(driver)
+
     # Проверяю если коммерческие автомобили
     category = cars_url.split('/')[4]
     if category != 'cars':
@@ -258,7 +273,7 @@ def parse_autoru_model(cars_url: str, driver: Chrome) -> list[dict]:
     next_page = next_page_check(driver)
     if next_page:
         total_pages = driver.find_elements(By.CLASS_NAME, 'ListingPagination__page')
-        total_pages = list(total_pages)[-1].text
+        total_pages = int(list(total_pages)[-1].text)
         current_page = 1
         logging.info(f'Страница {current_page:3} из {total_pages:3}')
 
@@ -275,6 +290,11 @@ def parse_autoru_model(cars_url: str, driver: Chrome) -> list[dict]:
     total_ads = ''.join(total_ads)
     logging.info(f'Всего объявлений: {total_ads}')
 
+    initial_href = driver.find_element(By.CSS_SELECTOR,
+                                       '.ListingCars_outputType_list .ListingItem a.Link.OfferThumb').get_attribute(
+        'href')
+
+    actions = ActionChains(driver)
     # Остальные страницы
     while next_page:
         try:
@@ -283,27 +303,73 @@ def parse_autoru_model(cars_url: str, driver: Chrome) -> list[dict]:
             driver.refresh()
             next_page = next_page_check(driver)
             next_page.click()
+            time.sleep(1)
+            # Если какой-нибудь popup появляется
+            close_popup(driver)
+
+        # if current_page > 1:
+        #     wait_for_fetch_request(driver, 'listing/')
+        initial_href = wait_for_href_change(driver, initial_href)
 
         current_page += 1
         logging.info(f'Страница {current_page:3} из {total_pages:3}')
         random_wait()
-        WebDriverWait(driver, 86400).until(
-            EC.presence_of_element_located((By.CLASS_NAME, 'ListingCars_outputType_list')))
+        check_captcha(driver)
+        check_auth_page(driver)
+        # WebDriverWait(driver, 86400).until(
+        #     EC.presence_of_element_located((By.CLASS_NAME, 'ListingCars_outputType_list')))
 
         rows = page_html(driver)
         for row in rows:
             cars.append(car_data(row, commercial=commercial))
 
         # Если какой-нибудь popup появляется
-        actions = ActionChains(driver)
-        actions.move_by_offset(0, 0).click().perform()
+        close_popup(driver)
+        # actions = ActionChains(driver)
+        # actions.move_by_offset(10000, 0).click().perform()
 
         next_page = next_page_check(driver)
         next_page_class = next_page.get_attribute('class')
-        if 'Button_disabled' in next_page_class:
+        if current_page >= total_pages or 'Button_disabled' in next_page_class:
             next_page = False
 
     return cars
+
+
+def wait_for_href_change(driver, initial_href, timeout=20):
+    """
+    Ждёт когда поменяется первое объявление в выдаче - это значит что следующая страница полностью загрузилась
+    @param driver:
+    @param initial_href:
+    @param timeout:
+    @return:
+    """
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        try:
+            current_href = driver.find_element(
+                By.CSS_SELECTOR, '.ListingCars_outputType_list .ListingItem a.Link.OfferThumb').get_attribute('href')
+        except StaleElementReferenceException:
+            continue
+        except NoSuchElementException:
+            break
+
+        if current_href != initial_href:
+            logging.info('Объявления загрузились после нажатия следующей страницы')
+            return current_href
+        time.sleep(0.5)  # Sleep briefly before checking again
+
+    # Если цикл выше не вернул новую ссылку то что-то пошло не так, пробую обновить страницу
+    logging.info('Что-то пошло нет так при переходе на следующую страницу, обновляю')
+    driver.refresh()
+
+    random_wait()
+    check_captcha(driver)
+    close_popup(driver)
+
+    current_href = driver.find_element(
+        By.CSS_SELECTOR, '.ListingCars_outputType_list .ListingItem a.Link.OfferThumb').get_attribute('href')
+    return current_href
 
 
 def next_page_check(driver: Chrome) -> Union[WebElement, bool]:
@@ -329,20 +395,23 @@ def collect_links(driver: Chrome, link: str) -> list:
     # TODO сейчас делаю только для объявлений из кабинета. В дальнейшем сделать со страницы дилера и с выдачи
     if 'cabinet.auto.ru' in link or 'agency.auto.ru' in link:
         ad_link_class = 'OfferSnippetRoyalSpec__title'
+        listing_items_class = 'Listing__items'
     elif 'diler' in link:
         ad_link_class = 'ListingItemTitle__link'
+        listing_items_class = 'ListingItem'
     else:
         raise ValueError(f'Сбор по ссылке:\n{link}\nпока не поддерживается')
 
     driver.get(link)
 
     random_wait()
+    # check_captcha(driver)
+    check_auth_page(driver)
     WebDriverWait(driver, 120).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
     # WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
 
     # Если какой-нибудь popup появляется
-    actions = ActionChains(driver)
-    actions.move_by_offset(0, 0).click().perform()
+    close_popup(driver)
 
     next_page = next_page_check(driver)
 
@@ -358,7 +427,9 @@ def collect_links(driver: Chrome, link: str) -> list:
     while next_page:
         next_page.click()
         random_wait()
-        WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CLASS_NAME, 'Listing__items')))
+        # check_captcha(driver)
+        check_auth_page(driver)
+        WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CLASS_NAME, listing_items_class)))
 
         rows = page_html(driver)
         for row in rows:
@@ -381,6 +452,7 @@ def parse_autoru_ad(driver: Chrome, ad_link: str):
     @return: словарь с данными автомобиля
     """
     driver.get(ad_link)
+    time.sleep(1)
 
     html = driver.page_source
     soup = BeautifulSoup(html, "html.parser")
@@ -413,7 +485,8 @@ def parse_autoru_ad(driver: Chrome, ad_link: str):
     color_label = soup.select_one('div.CardInfoGroupedRow__cellTitle:-soup-contains("Цвет")')
     color = color_label.find_next_sibling('a', 'CardInfoGroupedRow__cellValue').text
 
-    description = soup.find('div', class_='CardDescriptionHTML').text
+    description = soup.find('div', class_='CardDescriptionHTML')
+    description = extract_text_with_newlines(description)
 
     vin_label = soup.select_one('div.CardInfoGroupedRow__cellTitle:-soup-contains("VIN")')
     vin = vin_label.find_next_sibling('div', 'CardInfoGroupedRow__cellValue').text

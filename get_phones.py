@@ -1,6 +1,7 @@
 import csv
 import datetime
 import logging
+import os
 import time
 
 import openpyxl
@@ -14,6 +15,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
+from utils.auth_autoru import auth_autoru, check_auth_page
+from utils.captcha import check_captcha
+from utils.functions import close_popup
 from utils.random_wait import random_wait
 
 # Скрипт на сбор телефонов из объявлений
@@ -63,28 +67,13 @@ driver.get(url)
 
 WebDriverWait(driver, 86400).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
 
-# Клик по 0, 0 на случай если авто.ру показывает pop up
-actions = ActionChains(driver)
-actions.move_by_offset(0, 0).click().perform()
+# Если какой-нибудь popup появляется
+close_popup(driver)
 
 # Авторизация
 login_btn = driver.find_element(By.CLASS_NAME, 'HeaderUserMenu__loginButton')
 login_btn.click()
-
-# Через Яндекс ID
-yandex_id_btn = driver.find_element(By.ID, 'yandex')
-yandex_id_btn.click()
-random_wait()
-yandex_login_input = driver.find_element(By.ID, 'passp-field-login')
-yandex_login_input.send_keys(YANDEX_EMAIL)
-yandex_sign_in_btn = driver.find_element(By.ID, 'passp:sign-in')
-yandex_sign_in_btn.click()
-random_wait()
-yandex_password_input = driver.find_element(By.ID, 'passp-field-passwd')
-yandex_password_input.send_keys(YANDEX_PASSWORD)
-yandex_sign_in_btn2 = driver.find_element(By.ID, 'passp:sign-in')
-yandex_sign_in_btn2.click()
-random_wait()
+auth_autoru(driver)
 
 # Собираю данные объявлений
 # driver.get(CARS_URL)
@@ -148,6 +137,7 @@ with open('parsed_phones.csv', 'a', newline='', encoding='cp1251') as csvfile:
                 show_phone_btn.click()
 
             random_wait(MIN_WAIT, MAX_WAIT)
+            check_captcha(driver)
 
             try:
                 phone = driver.find_element(By.CLASS_NAME, 'SellerPopup__phoneNumber')

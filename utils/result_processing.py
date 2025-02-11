@@ -12,33 +12,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.filters import FilterColumn
 from pandas import DataFrame
 
-# Имена столбцов по-русски
-COLUMNS_RUS = {
-    'mark_model': 'Марка, модель',
-    'complectation': 'Комплектация',
-    'modification': 'Модификация',
-    'year': 'Год',
-    'dealer': 'Имя дилера',
-    'min_price_with_discount': 'Мин. цена со скидками',
-    'min_price_no_discount': 'Мин. цена без скидок',
-    'max_price': 'Макс. цена',
-    'min_price_with_discount_difference': 'Разница мин. цена со скидками',
-    'min_price_no_discount_difference': 'Разница мин. цена без скидок',
-    'max_price_difference': 'Разница макс. цена',
-    'stock': 'В наличии',
-    'for_order': 'Под заказ',
-    'link': 'Ссылка',
-    'price_with_discount': 'Цена со скидками',
-    'price_no_discount': 'Цена без скидок',
-    'with_nds': 'Цена с НДС',
-    'condition': 'Состояние/пробег',
-    'in_stock': 'Наличие',
-    'services': 'Услуги',
-    'tags': 'Стикеры',
-    'photos': 'Количество фото',
-    'position_actual': 'Позиция по актуальности',
-    'position_total': 'Позиция общая',
-}
+from utils.columns_mapper import COLUMNS_RUS
 
 # Цвета заливок
 BLUE_FILL = PatternFill(start_color='DEE6EF', end_color='DEE6EF', fill_type='solid')
@@ -91,11 +65,14 @@ def dealer_data(client: str, cars: list[dict], final_file: str, region: str) -> 
         df[['year', 'price_with_discount', 'price_no_discount']] \
             .apply(lambda x: pd.to_numeric(x, errors='coerce'))
 
+    # Регион из настроек парсера
+    df['region'] = region
+
     # Меняю столбцы местами
     df = df[['mark_model', 'complectation', 'modification', 'year', 'dealer',
              'price_with_discount', 'price_no_discount', 'with_nds',
              'position_actual', 'position_total',
-             'link', 'condition', 'in_stock', 'services', 'tags', 'photos']]
+             'link', 'condition', 'in_stock', 'services', 'tags', 'photos', 'region']]
 
     # Заменяю особые символы
     df['modification'] = df['modification'].str.replace('\u2009', '')
@@ -119,7 +96,7 @@ def dealer_data(client: str, cars: list[dict], final_file: str, region: str) -> 
     #         print(response.content)
     #     except JSONDecodeError:
     #         pass
-    #
+
     return process_raw_ads(df)
 
 
@@ -164,7 +141,7 @@ def dealers_pandas(df: DataFrame, autoru_name: str) -> str:
     @return: имя готового файла
     """
     # Удаляю ненужные столбцы
-    df = df.drop(columns=['condition', 'in_stock'])
+    df = df.drop(columns=['in_stock'])
 
     # Считаю разницу
     lookup_df = df[df['dealer'] == autoru_name]
@@ -186,46 +163,20 @@ def dealers_pandas(df: DataFrame, autoru_name: str) -> str:
         by=['mark_model', 'complectation', 'modification', 'year', 'price_with_discount'])
 
     # Меняю столбцы местами
-    merged_df = merged_df[['mark_model', 'complectation', 'modification', 'year', 'dealer',
-                           'price_with_discount', 'price_no_discount',
-                           'price_with_discount_difference', 'price_no_discount_difference',
-                           'position_price', 'position_actual', 'link', 'stock', 'for_order']]
+    merged_df = merged_df[
+        ['mark_model', 'complectation', 'modification', 'year', 'dealer', 'price_with_discount', 'price_no_discount',
+         'price_with_discount_difference', 'price_no_discount_difference', 'position_price', 'position_actual', 'link',
+         'stock', 'for_order', 'with_nds', 'condition', 'services', 'tags', 'photos', 'region']]
 
     merged_df = merged_df.fillna('')
 
     # Перевожу имена столбцов
-    merged_df = merged_df.rename(columns={
-        'mark_model': 'Марка, модель',
-        'complectation': 'Комплектация',
-        'modification': 'Модификация',
-        'year': 'Год',
-        'dealer': 'Имя дилера',
-        'price_with_discount': 'Цена со скидками',
-        'price_no_discount': 'Цена без скидок',
-        'price_with_discount_difference': 'Разница цены со скидками',
-        'price_no_discount_difference': 'Разница цены без скидок',
-        'position_price': 'Позиция по цене',
-        'position_actual': 'Позиция по актуальности',
-        'stock': 'В наличии',
-        'for_order': 'Под заказ',
-        'link': 'Ссылка',
-    })
-
-    # Это для второго листа на котором не очищаю повторы
-    full_df = merged_df.copy()
-
-    # Очищаю повторы данных автомобиля чтобы лучше смотрелось
-    is_duplicate = merged_df.duplicated(subset=['Марка, модель', 'Комплектация', 'Модификация', 'Год'], keep='first')
-    merged_df.loc[is_duplicate, 'Комплектация'] = ''
-    merged_df.loc[is_duplicate, 'Модификация'] = ''
-    merged_df.loc[is_duplicate, 'Год'] = ''
-    merged_df.loc[merged_df['Марка, модель'].duplicated(), 'Марка, модель'] = ''
+    merged_df = merged_df.rename(columns=COLUMNS_RUS)
 
     # Сохраняю
     file_name = 'after_pandas.xlsx'
     with pd.ExcelWriter(file_name, engine='xlsxwriter') as writer:
-        merged_df.T.reset_index().T.to_excel(writer, sheet_name='Первый вариант', header=False, index=False)
-        full_df.T.reset_index().T.to_excel(writer, sheet_name='Второй вариант', header=False, index=False)
+        merged_df.T.reset_index().T.to_excel(writer, sheet_name='Сравнение', header=False, index=False)
 
     return file_name
 
@@ -309,7 +260,7 @@ def format_work(xlsx_file: str, autoru_name: str, final_file: str) -> None:
         if cell.value in COLUMNS_RUS:
             cell.value = COLUMNS_RUS[cell.value]
 
-    sheets = ['Первый вариант', 'Второй вариант']
+    sheets = ['Сравнение']
     # Копирую листы
     for sheet in sheets:
         after_pandas_ws = after_pandas_wb[sheet]
@@ -351,7 +302,7 @@ def format_work(xlsx_file: str, autoru_name: str, final_file: str) -> None:
         # Границы над уникальными автомобилями
         border = Border(top=Side(style='medium', color='000000'))
         if sheet != 'Выдача':
-            sheet_for_borders = final_file_wb['Второй вариант']
+            sheet_for_borders = final_file_wb['Сравнение']
         else:
             sheet_for_borders = final_file_wb[sheet]
         prev_car, curr_car = '', ''

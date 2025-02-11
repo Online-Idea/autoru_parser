@@ -3,13 +3,10 @@ import logging
 import time
 
 import pandas as pd
-from selenium.webdriver.chrome.service import Service
-import undetected_chromedriver as uc
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.wait import WebDriverWait
 
+from utils.auth_autoru import check_auth_page
+from utils.browser_driver import browser_driver
+from utils.captcha import check_captcha
 from utils.parse_autoru import authorize_autoru, collect_links, parse_autoru_ad
 from utils.random_wait import random_wait
 
@@ -23,19 +20,7 @@ logging.basicConfig(
     datefmt="%Y.%m.%d %H:%M:%S",
 )
 
-
-service = Service()
-options = uc.ChromeOptions()
-# Отключаю окно сохранения пароля
-prefs = {"credentials_enable_service": False, "profile.password_manager_enabled": False}
-options.add_experimental_option("prefs", prefs)
-
-driver = webdriver.Chrome(options=options, service=service)
-driver.get('https://auto.ru')
-
-wait = WebDriverWait(driver, 120)
-# wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.Header__secondLine")))
+driver = browser_driver()
 
 tasks = pd.read_excel('start.xlsx', sheet_name='Внутри объявлений')
 
@@ -65,10 +50,13 @@ for _, task in tasks.iterrows():
 
     cars = []
     len_ads_links = len(ads_links)
+    logging.info(ads_links)
     for i, ad_link in enumerate(ads_links):
         logging.info(f'Объявление {i + 1:3} из {len_ads_links} {ad_link}')
         cars.append(parse_autoru_ad(driver, ad_link))
-        random_wait()
+        random_wait(0.5, 0.6)
+        # check_captcha(driver)
+        check_auth_page(driver)
 
     df = pd.DataFrame(cars)
 
